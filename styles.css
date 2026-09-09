@@ -140,6 +140,7 @@ tbody tr:hover{background:var(--paper)}
 .btn:disabled{opacity:.6;cursor:default}
 .btn.secondary{background:var(--paper);color:var(--text);border:1px solid var(--line)}
 .btn.danger{background:var(--danger-bg);color:var(--danger)}
+.btn.small{padding:6px 9px;font-size:10px}
 .btn.full{width:100%}
 .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .form-group label{display:block;font-size:10.5px;color:var(--muted);margin-bottom:6px;font-weight:600}
