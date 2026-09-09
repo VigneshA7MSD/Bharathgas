@@ -3,11 +3,13 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
 const staffNames = ['GOVINDAN','RAMESH','PK RAJA','MUTHU KANNAN','RAJKUMAR','OFFICE STAFF','GOPI','RAJA AND KANNAN','PRABHU','SURESH','KANNAN','AJITH','NIVETHA','SATHISH','S15','S16','OFFICE'];
+const cylinderTypes = ['14.2 KG','NC 14.2 KG','ADC 14.2 KG','19 KG','5 KG Red','5 KG Blue','47.5 KG'];
 const state = {
   page: 'dashboard',
   rows: { entries: [], customers: [], staff: [], stock: [], vehicles: [], expenses: [], attendance: [], cash_counts: [], rates: [] },
   charts: {},
-  loading: false
+  loading: false,
+  reportFilters: { from: '', to: '', person: '', type: '', payment: '' }
 };
 let sb = null;
 
@@ -94,8 +96,7 @@ async function handleForgotPassword() {
 
 async function load(table) {
   if (!sb) return [];
-  const orderColumn = table === 'rates' ? 'updated_at' : 'created_at';
-  const { data, error } = await sb.from(table).select('*').order(orderColumn, { ascending: false }).limit(500);
+  const { data, error } = await sb.from(table).select('*').order('created_at', { ascending: false }).limit(500);
   if (error) {
     console.error(`Load ${table}:`, error);
     toast(`${table}: ${error.message}`, true);
@@ -218,17 +219,49 @@ function attendance() { pageTable('Delivery boy attendance', `<button class="btn
 function cashCounts() { pageTable('Cash denomination counts', `<button class="btn" onclick="openCashCount()">＋ Add Cash Count</button>`, table(actionsHeader(['Date','Delivery Person','₹2000','₹500','₹200','₹100','₹50','₹20','₹10','₹5','₹2','₹1','Total']), state.rows.cash_counts, r => [esc(r.cash_date),esc(r.delivery_person),r.d2000,r.d500,r.d200,r.d100,r.d50,r.d20,r.d10,r.d5,r.d2,r.d1,money(r.total_cash)])); }
 
 function reports() {
-  const selected = $('#globalDate').value || today();
-  const es = state.rows.entries.filter(x=>x.entry_date===selected), ex = state.rows.expenses.filter(x=>x.expense_date===selected);
-  const at = state.rows.attendance.filter(x=>x.attendance_date===selected), cc = state.rows.cash_counts.filter(x=>x.cash_date===selected);
+  const rf = state.reportFilters;
+  const fromD = rf.from || $('#globalDate').value || today();
+  const toD = rf.to || fromD;
+  const rangeLabel = fromD === toD ? fromD : `${fromD} to ${toD}`;
+  const people = deliveryBoys();
+
+  let es = state.rows.entries.filter(x => x.entry_date >= fromD && x.entry_date <= toD);
+  let ex = state.rows.expenses.filter(x => x.expense_date >= fromD && x.expense_date <= toD);
+  let at = state.rows.attendance.filter(x => x.attendance_date >= fromD && x.attendance_date <= toD);
+  let cc = state.rows.cash_counts.filter(x => x.cash_date >= fromD && x.cash_date <= toD);
+
+  if (rf.person) { es = es.filter(x => x.staff_name === rf.person); at = at.filter(x => x.delivery_person === rf.person); cc = cc.filter(x => x.delivery_person === rf.person); }
+  if (rf.type) es = es.filter(x => x.cylinder_type === rf.type);
+  if (rf.payment) es = es.filter(x => x.payment_status === rf.payment);
+
   const sales = es.reduce((a,x)=>a+Number(x.amount||0),0), prepaid=es.reduce((a,x)=>a+Number(x.prepaid_amount||0),0), cash=es.reduce((a,x)=>a+Number(x.cash_amount||0),0), inhand=es.reduce((a,x)=>a+Number(x.in_hand_amount||0),0), expensesTotal = ex.reduce((a,x)=>a+Number(x.amount||0),0), cashCounted=cc.reduce((a,x)=>a+Number(x.total_cash||0),0);
-  $('#content').innerHTML = `<div class="cards"><div class="card metric"><div class="top">DAILY SALES</div><div class="value">${money(sales)}</div><div class="sub">${esc(selected)}</div></div><div class="card metric"><div class="top">PREPAID</div><div class="value">${money(prepaid)}</div></div><div class="card metric"><div class="top">CASH / IN HAND</div><div class="value">${money(cash+inhand)}</div></div><div class="card metric"><div class="top">CASH COUNTED</div><div class="value">${money(cashCounted)}</div></div></div>
-  <div class="panel"><div class="panel-head"><h3>Daily report — ${esc(selected)}</h3><div class="toolbar"><button class="btn" onclick="openAttendance()">＋ Attendance</button><button class="btn" onclick="openCashCount()">＋ Cash Denomination</button><button class="btn secondary" onclick="exportExcel()">Export Excel</button></div></div>
+  $('#content').innerHTML = `
+  <div class="panel"><div class="panel-head"><h3>Filters</h3></div>
+    <div class="form-grid">
+      <div class="form-group"><label>From date</label><input type="date" id="rf_from" value="${esc(fromD)}"></div>
+      <div class="form-group"><label>To date</label><input type="date" id="rf_to" value="${esc(toD)}"></div>
+      <div class="form-group"><label>Delivery person</label><select id="rf_person"><option value="">All</option>${people.map(p=>`<option value="${esc(p)}" ${rf.person===p?'selected':''}>${esc(p)}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Cylinder type</label><select id="rf_type"><option value="">All</option>${cylinderTypes.map(t=>`<option value="${esc(t)}" ${rf.type===t?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Payment status</label><select id="rf_payment"><option value="">All</option>${['Paid','Pending','Partial'].map(p=>`<option value="${p}" ${rf.payment===p?'selected':''}>${p}</option>`).join('')}</select></div>
+    </div>
+    <div class="modal-actions"><button class="btn secondary" onclick="resetReportFilters()">Reset</button><button class="btn" onclick="applyReportFilters()">Apply Filters</button></div>
+  </div>
+  <div class="cards"><div class="card metric"><div class="top">SALES</div><div class="value">${money(sales)}</div><div class="sub">${esc(rangeLabel)}</div></div><div class="card metric"><div class="top">PREPAID</div><div class="value">${money(prepaid)}</div></div><div class="card metric"><div class="top">CASH / IN HAND</div><div class="value">${money(cash+inhand)}</div></div><div class="card metric"><div class="top">CASH COUNTED</div><div class="value">${money(cashCounted)}</div></div></div>
+  <div class="panel"><div class="panel-head"><h3>Report — ${esc(rangeLabel)}</h3><div class="toolbar"><button class="btn" onclick="openAttendance()">＋ Attendance</button><button class="btn" onclick="openCashCount()">＋ Cash Denomination</button><button class="btn secondary" onclick="exportExcel()">Export Excel</button></div></div>
   <div class="summary-list"><div class="summary-row"><span>Sales</span><b>${money(sales)}</b></div><div class="summary-row"><span>Prepaid</span><b>${money(prepaid)}</b></div><div class="summary-row"><span>Cash</span><b>${money(cash)}</b></div><div class="summary-row"><span>Cash handed in / in hand</span><b>${money(inhand)}</b></div><div class="summary-row"><span>Expenses</span><b>${money(expensesTotal)}</b></div></div></div>
   <div class="panel"><div class="panel-head"><h3>Cylinder Prices</h3><button class="btn" onclick="openRate()">＋ Update Price</button></div>${table(actionsHeader(['Cylinder Type','Price','Updated']),state.rows.rates,r=>[esc(r.cylinder_type),money(r.rate),esc(r.updated_at ? new Date(r.updated_at).toLocaleString('en-IN') : '')])}</div>
   <div class="panel"><div class="panel-head"><h3>Attendance</h3></div>${table(actionsHeader(['Date','Delivery Person','Status','Note']),at,r=>[esc(r.attendance_date),esc(r.delivery_person),esc(r.status),esc(r.note)])}</div>
   <div class="panel"><div class="panel-head"><h3>Cash denominations</h3></div>${table(actionsHeader(['Date','Delivery Person','₹2000','₹500','₹200','₹100','₹50','₹20','₹10','₹5','₹2','₹1','Total']),cc,r=>[esc(r.cash_date),esc(r.delivery_person),r.d2000,r.d500,r.d200,r.d100,r.d50,r.d20,r.d10,r.d5,r.d2,r.d1,money(r.total_cash)])}</div>
-  <div class="panel"><div class="panel-head"><h3>Daily delivery report</h3></div>${table(actionsHeader(['Date','Customer','Delivery Person','Type','Qty','Cylinder Price','Amount','Payment','Prepaid','Cash','In Hand']),es,r=>[esc(r.entry_date),esc(r.customer_name),esc(r.staff_name),esc(r.cylinder_type),esc(r.quantity),money(r.rate),money(r.amount),esc(r.payment_status),money(r.prepaid_amount),money(r.cash_amount),money(r.in_hand_amount)])}</div>`;
+  <div class="panel"><div class="panel-head"><h3>Delivery report</h3></div>${table(actionsHeader(['Date','Customer','Delivery Person','Type','Qty','Cylinder Price','Amount','Payment','Prepaid','Cash','In Hand']),es,r=>[esc(r.entry_date),esc(r.customer_name),esc(r.staff_name),esc(r.cylinder_type),esc(r.quantity),money(r.rate),money(r.amount),esc(r.payment_status),money(r.prepaid_amount),money(r.cash_amount),money(r.in_hand_amount)])}</div>`;
+}
+
+function applyReportFilters() {
+  state.reportFilters = { from: $('#rf_from').value || today(), to: $('#rf_to').value || $('#rf_from').value || today(), person: $('#rf_person').value, type: $('#rf_type').value, payment: $('#rf_payment').value };
+  reports();
+}
+function resetReportFilters() {
+  state.reportFilters = { from: '', to: '', person: '', type: '', payment: '' };
+  reports();
 }
 
 function form(fields) {
@@ -237,7 +270,7 @@ function form(fields) {
     let control = '';
     if (type === 'select') control = `<select id="f_${f.id}" ${f.required===false?'':'required'}>${(f.options||[]).map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;
     else if (type === 'textarea') control = `<textarea id="f_${f.id}" rows="3" placeholder="${esc(f.placeholder||'')}" ${f.required===false?'':'required'}>${esc(f.value||'')}</textarea>`;
-    else control = `<input id="f_${f.id}" type="${type}" value="${esc(f.value ?? '')}" placeholder="${esc(f.placeholder||'')}" ${f.required===false?'':'required'}>`;
+    else control = `<input id="f_${f.id}" type="${type}" value="${esc(f.value ?? '')}" placeholder="${esc(f.placeholder||'')}" ${f.required===false?'':'required'} ${f.readonly?'readonly class="readonly-field"':''}>`;
     return `<div class="form-group ${f.full?'full':''}"><label for="f_${f.id}">${esc(f.label)}</label>${control}</div>`;
   }).join('')}</div><div class="modal-actions"><button type="button" class="btn secondary" onclick="closeModal()">Cancel</button><button type="submit" class="btn">Save</button></div></form>`;
 }
@@ -258,9 +291,11 @@ function openEntry() {
   openModal('Add Daily Entry', form([
     {id:'date',label:'Date',type:'date',value:$('#globalDate').value},{id:'customer',label:'Customer name',required:false},
     deliverySelect('staff','Delivery person'),{id:'type',label:'Cylinder type',type:'select',options:types},
-    {id:'qty',label:'Quantity',type:'number',value:1},{id:'rate',label:'Cylinder price',type:'number',value:currentRate(types[0])},
+    {id:'qty',label:'Quantity',type:'number',value:1},{id:'rate',label:'Cylinder price (set in Reports \u2192 Update Price)',type:'text',value:currentRate(types[0]),readonly:true},
     {id:'payment',label:'Payment status',type:'select',options:['Paid','Pending','Partial']},{id:'prepaid',label:'Prepaid amount',type:'number',value:0,required:false},{id:'cash',label:'Cash received',type:'number',value:0,required:false},{id:'inhand',label:'Cash in hand / handed in',type:'number',value:0,required:false},{id:'notes',label:'Notes',type:'textarea',required:false,full:true}
   ]), () => insert('entries',{entry_date:v('date'),customer_name:v('customer'),staff_name:v('staff'),cylinder_type:v('type'),quantity:+v('qty'),rate:+v('rate'),payment_status:v('payment'),prepaid_amount:+v('prepaid'),cash_amount:+v('cash'),in_hand_amount:+v('inhand'),notes:v('notes')}));
+  const typeEl = $('#f_type'), rateEl = $('#f_rate');
+  if (typeEl && rateEl) typeEl.addEventListener('change', () => { rateEl.value = currentRate(typeEl.value); });
 }
 function openCustomer() { openModal('Add Customer', form([{id:'name',label:'Customer name'},{id:'phone',label:'Phone',required:false},{id:'type',label:'Customer type',type:'select',options:['Commercial','Domestic','Institution','Other']},{id:'address',label:'Address',full:true,required:false},{id:'outstanding',label:'Opening outstanding',type:'number',value:0}]), () => insert('customers',{name:v('name'),phone:v('phone'),customer_type:v('type'),address:v('address'),outstanding:+v('outstanding')})); }
 function openStaff() { openModal('Add Staff', form([{id:'name',label:'Name'},{id:'role',label:'Role',type:'select',options:['Delivery Boy','Office Staff','Driver','Helper','Other']},{id:'phone',label:'Phone',required:false},{id:'active',label:'Status',type:'select',options:['Active','Inactive']}]), () => insert('staff',{name:v('name'),role:v('role'),phone:v('phone'),active:v('active')==='Active'})); }
