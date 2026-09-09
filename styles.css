@@ -145,6 +145,7 @@ tbody tr:hover{background:var(--paper)}
 .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .form-group label{display:block;font-size:10.5px;color:var(--muted);margin-bottom:6px;font-weight:600}
 .form-group.full{grid-column:1/-1}
+.readonly-field{background:var(--paper);color:var(--muted);cursor:not-allowed}
 
 /* ---------- Modal ---------- */
 .modal{position:fixed;inset:0;background:rgba(10,15,20,.5);display:grid;place-items:center;padding:20px;z-index:10}
