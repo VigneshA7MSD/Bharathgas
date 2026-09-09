@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GasFlow — Distribution Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="login">
+  <div class="login-brand">
+    <div class="login-brand-top">
+      <div class="logo">G</div>
+      <div><b>GasFlow</b><span>Distribution Manager</span></div>
+    </div>
+    <div class="gauge-wrap" aria-hidden="true">
+      <svg viewBox="0 0 200 200" class="gauge">
+        <circle cx="100" cy="100" r="86" class="gauge-ring"/>
+        <path d="M 30 140 A 86 86 0 1 1 170 140" class="gauge-arc"/>
+        <g class="gauge-needle"><line x1="100" y1="100" x2="100" y2="34"/><circle cx="100" cy="100" r="7"/></g>
+        <text x="34" y="152" class="gauge-label">E</text>
+        <text x="158" y="152" class="gauge-label">F</text>
+      </svg>
+    </div>
+    <p class="login-tag">Deliveries, stock, staff and expenses for your LPG distribution business — all in one dashboard, backed by live data.</p>
+    <div class="login-brand-foot">Supabase powered · v1.0</div>
+  </div>
+
+  <div class="login-panel">
+    <div class="login-card">
+      <h1>Sign in</h1>
+      <p class="login-sub">Enter your credentials to open the dashboard.</p>
+      <form id="loginForm">
+        <div class="form-group full">
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" autocomplete="username" required>
+        </div>
+        <div class="form-group full">
+          <label for="loginPassword">Password</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" required>
+        </div>
+        <div id="loginError" class="login-error hidden"></div>
+        <button type="submit" class="btn full" id="loginSubmit">Sign in</button>
+      </form>
+      <button type="button" class="link-btn" id="forgotBtn">Forgot password?</button>
+      <p id="configWarning" class="config-warning hidden">Supabase is not configured yet. Edit <code>config.js</code> with your project URL and key.</p>
+    </div>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div class="app hidden" id="appScreen">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">G</div><div><b>GasFlow</b><span>Distribution Manager</span></div></div>
+    <nav id="nav">
+      <button class="active" data-page="dashboard">▦ <span>Dashboard</span></button>
+      <button data-page="entries">＋ <span>Daily Entry</span></button>
+      <button data-page="customers">◉ <span>Customers</span></button>
+      <button data-page="staff">♟ <span>Staff</span></button>
+      <button data-page="stock">▣ <span>Stock</span></button>
+      <button data-page="vehicles">▱ <span>Vehicles</span></button>
+      <button data-page="expenses">₹ <span>Expenses</span></button>
+      <button data-page="reports">▤ <span>Reports</span></button>
+    </nav>
+    <div class="side-foot">
+      <div id="sideUser" class="side-user"></div>
+      <button class="logout-btn" id="logoutBtn">Sign out</button>
+      <small>v1.0 · September 2026</small>
+    </div>
+  </aside>
+  <main>
+    <header>
+      <div><div class="crumb">Management / <strong id="pageTitle">Dashboard</strong></div><h1 id="headline">Good afternoon 👋</h1></div>
+      <div class="header-actions"><input id="globalDate" type="date"><button class="icon-btn" onclick="toggleTheme()">◐</button><button class="avatar" id="avatarBtn">VA</button></div>
+    </header>
+    <section id="content"></section>
+  </main>
+</div>
+
+<div id="modal" class="modal hidden"><div class="modal-card"><div class="modal-head"><h3 id="modalTitle">Add</h3><button onclick="closeModal()">×</button></div><div id="modalBody"></div></div></div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
