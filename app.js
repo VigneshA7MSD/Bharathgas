@@ -10,7 +10,7 @@ const state = {
   charts: {},
   loading: false,
   role: 'employee',
-  reportFilters: { from: '', to: '', person: '', type: '', payment: '' }
+  reportFilters: { from: '', to: '', person: '', type: '', payment: '', paymentMethod: '', category: '', customer: '' }
 };
 let sb = null;
 let entryItemsDraft = [];
@@ -117,7 +117,8 @@ async function handleForgotPassword() {
 
 async function load(table) {
   if (!sb) return [];
-  const { data, error } = await sb.from(table).select('*').order('created_at', { ascending: false }).limit(500);
+  const orderField = table === 'rates' ? 'updated_at' : 'created_at';
+  const { data, error } = await sb.from(table).select('*').order(orderField, { ascending: false }).limit(500);
   if (error) {
     console.error(`Load ${table}:`, error);
     toast(`${table}: ${error.message}`, true);
@@ -140,7 +141,7 @@ async function refresh() {
 function showPage(page) {
   state.page = page;
   $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.page === page));
-  const names = { dashboard:'Dashboard', entries:'Daily Entry', customers:'Customers', staff:'Staff', stock:'Stock', vehicles:'Vehicles', expenses:'Expenses', reports:'Reports' };
+  const names = { dashboard:'Dashboard', entries:'Daily Entry', customers:'Customers', staff:'Staff', stock:'Stock', vehicles:'Vehicles', 'income-reports':'Income Report', 'expense-reports':'Expense Report' };
   $('#pageTitle').textContent = names[page] || 'Dashboard';
   $('#headline').textContent = page === 'dashboard' ? 'Good afternoon 👋' : (names[page] || 'Dashboard');
   render();
@@ -155,8 +156,8 @@ function render() {
   else if (p === 'staff') staff();
   else if (p === 'stock') stock();
   else if (p === 'vehicles') vehicles();
-  else if (p === 'expenses') expenses();
-  else if (p === 'reports') reports();
+  else if (p === 'income-reports') incomeReport();
+  else if (p === 'expense-reports') expenseReport();
 }
 
 function dashboard() {
@@ -179,7 +180,7 @@ function dashboard() {
           <button onclick="openEntry()"><b>＋ Daily Entry</b><span>Record a delivery</span></button>
           <button onclick="openCustomer()"><b>＋ Customer</b><span>Add customer</span></button>
           <button onclick="openExpense()"><b>＋ Expense</b><span>Record expense</span></button>
-          <button onclick="showPage('reports')"><b>▤ Reports</b><span>View reports</span></button>
+          <button onclick="showPage('income-reports')"><b>↗ Income Report</b><span>Filter & export income</span></button><button onclick="showPage('expense-reports')"><b>↘ Expense Report</b><span>Filter & export expenses</span></button>
         </div>
         <div class="panel-head" style="margin-top:22px"><h3>Stock snapshot</h3></div>
         <div class="stock-grid">
@@ -242,9 +243,8 @@ function actionsHeader(headers){ return [...headers,'Actions']; }
 function entries() {
   const tab = state.entriesTab || 'sales';
   const tabs = [
-    { id:'sales', label:'Sales Entry' },
+    { id:'sales', label:'Daily Entry' },
     { id:'attendance', label:'Attendance' },
-    { id:'cash', label:'Cash Denomination' },
     { id:'prices', label:'Cylinder Prices' }
   ];
   const tabBar = `<div class="tab-bar">${tabs.map(t=>`<button class="tab-btn ${tab===t.id?'active':''}" onclick="switchEntriesTab('${t.id}')">${esc(t.label)}</button>`).join('')}</div>`;
@@ -252,15 +252,172 @@ function entries() {
   let body = '';
   if (tab === 'attendance') {
     body = `<div class="panel"><div class="panel-head"><h3>Delivery boy attendance</h3><button class="btn" onclick="openAttendance()">＋ Mark Attendance</button></div>${table(actionsHeader(['Date','Delivery Person','Status','Note']), state.rows.attendance, r => [esc(r.attendance_date),esc(r.delivery_person),esc(r.status),esc(r.note)], 'attendance')}</div>`;
-  } else if (tab === 'cash') {
-    body = `<div class="panel"><div class="panel-head"><h3>Cash denomination counts</h3><button class="btn" onclick="openCashCount()">＋ Add Cash Count</button></div>${table(actionsHeader(['Date','Delivery Person','₹2000','₹500','₹200','₹100','₹50','₹20','₹10','₹5','₹2','₹1','Total']), state.rows.cash_counts, r => [esc(r.cash_date),esc(r.delivery_person),r.d2000,r.d500,r.d200,r.d100,r.d50,r.d20,r.d10,r.d5,r.d2,r.d1,money(r.total_cash)], 'cash_counts')}</div>`;
   } else if (tab === 'prices') {
     body = `<div class="panel"><div class="panel-head"><h3>Cylinder Prices</h3><button class="btn" onclick="openRate()">＋ Update Price</button></div>${table(actionsHeader(['Cylinder Type','Price','Updated']), state.rows.rates, r => [esc(r.cylinder_type),money(r.rate),esc(r.updated_at ? new Date(r.updated_at).toLocaleString('en-IN') : '')], 'rates')}</div>`;
   } else {
-    body = `<div class="panel"><div class="panel-head"><h3>Daily delivery & sales records</h3><button class="btn" onclick="openEntry()">＋ Add Entry</button></div>${table(actionsHeader(['Date','Customer','Delivery Person','Type','Qty','Cylinder Price','Amount','Payment','Prepaid','Cash','In Hand','Cylinder in Hand','Attendance','Cash Counted','Tally']), state.rows.entries, r => { const t=tallyFor(r); return [esc(r.entry_date),esc(r.customer_name),esc(r.staff_name),esc(r.cylinder_type),esc(r.quantity),money(r.rate),money(r.amount),`<span class="badge ${r.payment_status==='Paid'?'':'red'}">${esc(r.payment_status||'Pending')}</span>`,money(r.prepaid_amount),money(r.cash_amount),money(r.in_hand_amount),esc(r.cylinder_in_hand),`<span class="badge ${attendanceFor(r.entry_date,r.staff_name)==='Present'?'':'red'}">${esc(attendanceFor(r.entry_date,r.staff_name))}</span>`,money(r.denomination_total),`<span class="badge ${t.ok?'':'red'}">${esc(t.label)}</span>`]; }, 'entries')}</div>`;
+    body = dailyEntryForm();
   }
   $('#content').innerHTML = tabBar + body;
+  if (tab === 'sales') initDailyEntryForm();
 }
+
+function dailyEntryForm() {
+  const types = cylinderTypes;
+  const people = deliveryBoys();
+  const vehiclesList = state.rows.vehicles.map(v=>v.vehicle_no).filter(Boolean);
+  const vehicleOpts = [...new Set(vehiclesList)];
+  const expenseFields = [
+    ['bank_deposit','Bank Deposit'],
+    ['loadman_advance','Load Man Advance'],
+    ['salary','Salary'],
+    ['incentives','Incentives'],
+    ['stationery','Stationery'],
+    ['farm_expenses','Farm Expenses'],
+    ['hotel_expenses','Hotel / Food'],
+    ['kanika_expenses','Kanika Expenses'],
+    ['tea','Tea'],
+    ['other_expenses','Other']
+  ];
+  const den = ['2000','500','200','100','50','20','10','5','2','1'];
+  return `<form id="dailyEntryForm" class="daily-entry" onsubmit="return saveDailyEntry(event)">
+    <div class="daily-grid">
+      <section class="entry-section full">
+        <div class="entry-section-title"><div><span>01</span><h3>Delivery & Cylinder Entry</h3></div><small>Enter the preferred delivery date and delivery person.</small></div>
+        <div class="form-grid">
+          <div class="form-group"><label>Receipt / Delivery date</label><input id="de_date" type="date" value="${esc($('#globalDate').value || today())}" required></div>
+          <div class="form-group"><label>Delivery boy</label><select id="de_staff" required>${people.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select></div>
+        </div>
+        <div class="entry-line-head"><span>Selected cylinders</span><span>Rate</span><span>Qty</span><span>Total</span><span></span></div>
+        <div id="dailyItems" class="daily-items"></div>
+        <div class="daily-add-row">
+          <select id="de_type">${types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
+          <input id="de_qty" type="number" min="1" step="1" value="1">
+          <button type="button" class="btn secondary" onclick="addDailyCylinder()">＋ Add Product</button>
+        </div>
+      </section>
+
+      <section class="entry-section">
+        <div class="entry-section-title"><div><span>02</span><h3>Payment Details</h3></div><small>Match the notebook payment split.</small></div>
+        <div class="compact-fields">
+          <label>Prepaid <input id="de_prepaid" type="number" min="0" step="0.01" value="0"></label>
+          <label>No. of Online Cyl <input id="de_online_cyl" type="number" min="0" step="1" value="0"></label>
+          <label>No. of GPay / Pay Cyl <input id="de_gpay_cyl" type="number" min="0" step="1" value="0"></label>
+          <label>1 KG GPay Amt <input id="de_gpay_1kg" type="number" min="0" step="0.01" value="0"></label>
+          <label>5 KG GPay Amt <input id="de_gpay_5kg" type="number" min="0" step="0.01" value="0"></label>
+          <label>Other GPay <input id="de_other_gpay" type="number" min="0" step="0.01" value="0"></label>
+          <label>Office Cash <input id="de_office_cash" type="number" min="0" step="0.01" value="0"></label>
+          <label>Payment Status <select id="de_payment"><option>Paid</option><option>Partial</option><option>Pending</option></select></label>
+        </div>
+      </section>
+
+      <section class="entry-section">
+        <div class="entry-section-title"><div><span>03</span><h3>Daily Expenses</h3></div><small>Enter only the expenses used today.</small></div>
+        <div class="expense-grid">${expenseFields.map(([id,label])=>`<label>${esc(label)}<input id="de_${id}" type="number" min="0" step="0.01" value="0"></label>`).join('')}</div>
+      </section>
+
+      <section class="entry-section">
+        <div class="entry-section-title"><div><span>04</span><h3>Vehicle Details</h3></div><small>KM difference is calculated automatically.</small></div>
+        <div class="compact-fields vehicle-fields">
+          <label>Vehicle <select id="de_vehicle"><option value="">Select vehicle</option>${vehicleOpts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}</select></label>
+          <label>Starting KM <input id="de_start_km" type="number" min="0" step="0.1" value="0"></label>
+          <label>Ending KM <input id="de_end_km" type="number" min="0" step="0.1" value="0"></label>
+          <label>Difference <input id="de_diff_km" type="number" value="0" readonly></label>
+          <label>Diesel Filled Qty <input id="de_diesel" type="number" min="0" step="0.01" value="0"></label>
+          <label>Diesel Amount <input id="de_diesel_amt" type="number" min="0" step="0.01" value="0"></label>
+          <label>Service Done <input id="de_service" type="text" placeholder="Service details"></label>
+          <label>Maintenance Amt <input id="de_maintenance" type="number" min="0" step="0.01" value="0"></label>
+        </div>
+      </section>
+
+      <section class="entry-section">
+        <div class="entry-section-title"><div><span>05</span><h3>Cash Denomination</h3></div><small>Count notes and coins physically in hand.</small></div>
+        <div class="den-grid">${den.map(d=>`<label>₹${d}<input id="de_d${d}" type="number" min="0" step="1" value="0"></label>`).join('')}</div>
+        <div class="cash-total"><span>Total Cash</span><strong id="de_total_cash">₹0</strong></div>
+      </section>
+
+      <section class="entry-section tally-section">
+        <div class="entry-section-title"><div><span>06</span><h3>Tally</h3></div><small>Income − Expenses = Balance</small></div>
+        <div class="tally-large">
+          <div><span>Total Income</span><b id="de_income">₹0</b></div>
+          <div><span>Total Expenses</span><b id="de_expenses">₹0</b></div>
+          <div class="balance"><span>Balance</span><b id="de_balance">₹0</b></div>
+          <div><span>Total Cash</span><b id="de_tally_cash">₹0</b></div>
+        </div>
+      </section>
+    </div>
+    <div class="daily-save-bar"><div><b>Daily Entry</b><span>Review the tally before saving to cloud.</span></div><button type="submit" class="btn">Save Daily Entry</button></div>
+  </form>
+  <div class="panel daily-history"><div class="panel-head"><h3>Today's Sales Records</h3><small>${esc($('#globalDate').value || today())}</small></div>${table(actionsHeader(['Date','Customer','Delivery Person','Type','Qty','Amount','Payment']), state.rows.entries.filter(r=>r.entry_date === ($('#globalDate').value || today())).slice(0,20), r => [esc(r.entry_date),esc(r.customer_name),esc(r.staff_name),esc(r.cylinder_type),esc(r.quantity),money(r.amount),`<span class="badge ${r.payment_status==='Paid'?'':'red'}">${esc(r.payment_status||'Pending')}</span>`], 'entries')}</div>`;
+}
+
+let dailyCylinderDraft = [];
+function initDailyEntryForm() {
+  dailyCylinderDraft = [];
+  renderDailyCylinders();
+  ['de_prepaid','de_online_cyl','de_gpay_cyl','de_gpay_1kg','de_gpay_5kg','de_other_gpay','de_office_cash','de_start_km','de_end_km', ...['2000','500','200','100','50','20','10','5','2','1'].map(x=>'de_d'+x), ...['bank_deposit','loadman_advance','salary','incentives','stationery','farm_expenses','hotel_expenses','kanika_expenses','tea','other_expenses','de_diesel_amt','de_maintenance']].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('input', recalcDailyEntry); });
+  const type=$('#de_type'), qty=$('#de_qty');
+  if(type) type.addEventListener('change', recalcDailyEntry);
+  recalcDailyEntry();
+}
+function addDailyCylinder() {
+  const type=$('#de_type')?.value, qty=Number($('#de_qty')?.value||0);
+  if(!type || qty<=0){toast('Enter a valid cylinder quantity.',true);return;}
+  dailyCylinderDraft.push({type,qty});
+  $('#de_qty').value=1;
+  renderDailyCylinders();
+  recalcDailyEntry();
+}
+function removeDailyCylinder(i){dailyCylinderDraft.splice(i,1); renderDailyCylinders(); recalcDailyEntry();}
+function renderDailyCylinders(){
+  const el=$('#dailyItems'); if(!el) return;
+  el.innerHTML=dailyCylinderDraft.length ? dailyCylinderDraft.map((it,i)=>{const rate=currentRate(it.type), total=rate*it.qty; return `<div class="daily-item"><span>${esc(it.type)}</span><span>${money(rate)}</span><span>${esc(it.qty)}</span><b>${money(total)}</b><button type="button" class="btn danger small" onclick="removeDailyCylinder(${i})">Delete</button></div>`}).join('') : '<div class="empty-small">No cylinder selected. Choose a cylinder type and click Add Product.</div>';
+}
+function dailyIncome(){return dailyCylinderDraft.reduce((a,it)=>a+Number(it.qty||0)*currentRate(it.type),0);}
+function dailyExpenses(){return ['bank_deposit','loadman_advance','salary','incentives','stationery','farm_expenses','hotel_expenses','kanika_expenses','tea','other_expenses'].reduce((a,id)=>a+Number($('#de_'+id)?.value||0),0)+Number($('#de_diesel_amt')?.value||0)+Number($('#de_maintenance')?.value||0);}
+function dailyCash(){return ['2000','500','200','100','50','20','10','5','2','1'].reduce((a,d)=>a+Number($('#de_d'+d)?.value||0)*Number(d),0);}
+function recalcDailyEntry(){
+  const start=Number($('#de_start_km')?.value||0), end=Number($('#de_end_km')?.value||0), diff=Math.max(0,end-start);
+  if($('#de_diff_km')) $('#de_diff_km').value=diff;
+  const income=dailyIncome(), expenses=dailyExpenses(), balance=income-expenses, cash=dailyCash();
+  if($('#de_income')) $('#de_income').textContent=money(income);
+  if($('#de_expenses')) $('#de_expenses').textContent=money(expenses);
+  if($('#de_balance')) { $('#de_balance').textContent=money(balance); $('#de_balance').className=balance<0?'tally-negative':''; }
+  if($('#de_total_cash')) $('#de_total_cash').textContent=money(cash);
+  if($('#de_tally_cash')) $('#de_tally_cash').textContent=money(cash);
+}
+async function saveDailyEntry(e){
+  e.preventDefault();
+  if(!sb){toast('Supabase is not connected.',true);return false;}
+  const date=$('#de_date').value, staff=$('#de_staff').value;
+  if(!date || !staff){toast('Date and delivery boy are required.',true);return false;}
+  if(!dailyCylinderDraft.length){toast('Add at least one cylinder product before saving.',true);return false;}
+  try{
+    await autoMarkAttendance(date,staff);
+    const shared={entry_date:date,staff_name:staff,payment_status:$('#de_payment').value,prepaid_amount:Number($('#de_prepaid').value||0),cash_amount:Number($('#de_office_cash').value||0),in_hand_amount:0,online_cyl_qty:Number($('#de_online_cyl').value||0),gpay_cyl_qty:Number($('#de_gpay_cyl').value||0),gpay_1kg_amount:Number($('#de_gpay_1kg').value||0),gpay_5kg_amount:Number($('#de_gpay_5kg').value||0),other_gpay_amount:Number($('#de_other_gpay').value||0),office_cash_amount:Number($('#de_office_cash').value||0)};
+    const groupId=crypto.randomUUID?crypto.randomUUID():(Date.now()+'-'+Math.random());
+    const rows=dailyCylinderDraft.map((it,i)=>({...shared,cylinder_type:it.type,quantity:Number(it.qty),rate:currentRate(it.type),group_id:groupId,is_primary:i===0}));
+    const {error:entryError}=await sb.from('entries').insert(rows);
+    if(entryError) throw entryError;
+
+    const expenseMap=[['bank_deposit','BANK DEPOSIT'],['loadman_advance','LOAD MAN ADVANCE'],['salary','SALARY'],['incentives','INCENTIVES'],['stationery','STATIONERY'],['farm_expenses','FARM EXPENSES'],['hotel_expenses','HOTEL / FOOD'],['kanika_expenses','KANIKA EXPENSES'],['tea','TEA'],['other_expenses','OTHER'],['de_diesel_amt','DIESEL / PETROL'],['de_maintenance','MAINTENANCE']];
+    const expenseRows=expenseMap.map(([id,category])=>({category,amount:Number($('#'+(id.startsWith('de_')?id:'de_'+id))?.value||0)})).filter(x=>x.amount>0).map(x=>({expense_date:date,staff_name:staff,cylinder_type:null,category:x.category,description:'Daily Entry',amount:x.amount,payment_method:'Cash'}));
+    if(expenseRows.length){const {error}=await sb.from('expenses').insert(expenseRows);if(error)throw error;}
+
+    const vehicle=$('#de_vehicle').value;
+    if(vehicle){const {error}=await sb.from('vehicles').insert({log_date:date,vehicle_no:vehicle,driver:staff,starting_km:Number($('#de_start_km').value||0),ending_km:Number($('#de_end_km').value||0),diesel_filled:Number($('#de_diesel').value||0),diesel_amount:Number($('#de_diesel_amt').value||0),service:$('#de_service').value,service_amount:Number($('#de_maintenance').value||0)});if(error)throw error;}
+
+    const den=['2000','500','200','100','50','20','10','5','2','1'];
+    const cp={cash_date:date,delivery_person:staff}; let total=0;
+    den.forEach(d=>{cp['d'+d]=Number($('#de_d'+d).value||0);total+=cp['d'+d]*Number(d)}); cp.total_cash=total;
+    if(total>0){const {error}=await sb.from('cash_counts').insert(cp);if(error)throw error;}
+    closeModal();
+    toast('Daily entry saved successfully');
+    await refresh();
+    if(state.page==='entries'){state.entriesTab='sales';entries();}
+  }catch(err){console.error('Daily entry:',err);toast(err.message||'Failed to save daily entry',true);}
+  return false;
+}
+
 function switchEntriesTab(tab) { state.entriesTab = tab; entries(); }
 function customers() { pageTable('Customer master', `<button class="btn" onclick="openCustomer()">＋ Add Customer</button>`, table(actionsHeader(['Name','Phone','Type','Address','Outstanding']), state.rows.customers, r => [esc(r.name),esc(r.phone),esc(r.customer_type),esc(r.address),money(r.outstanding)], 'customers')); }
 function staff() { pageTable('Staff & delivery team', `<button class="btn" onclick="openStaff()">＋ Add Staff</button>`, table(actionsHeader(['Name','Role','Phone','Active']), state.rows.staff, r => [esc(r.name),esc(r.role),esc(r.phone),`<span class="badge">${r.active?'Active':'Inactive'}</span>`], 'staff')); }
@@ -268,46 +425,86 @@ function stock() { pageTable('Cylinder stock movements', `<button class="btn" on
 function vehicles() { pageTable('Vehicle & fuel log', `<button class="btn" onclick="openVehicle()">＋ Add Vehicle Log</button>`, table(actionsHeader(['Date','Vehicle','Driver','Start KM','End KM','Total KM','Diesel L','Diesel Amount','Service']), state.rows.vehicles, r => [esc(r.log_date),esc(r.vehicle_no),esc(r.driver),esc(r.starting_km),esc(r.ending_km),esc(r.total_km),esc(r.diesel_filled),money(r.diesel_amount),esc(r.service||'—')], 'vehicles')); }
 function expenses() { pageTable('Expenses', `<button class="btn" onclick="openExpense()">＋ Add Expense</button>`, table(actionsHeader(['Date','Category','Description','Amount','Payment']), state.rows.expenses, r => [esc(r.expense_date),esc(r.category),esc(r.description),money(r.amount),esc(r.payment_method)], 'expenses')); }
 
-function reports() {
+function reportDateDefaults() {
+  const from = state.reportFilters.from || $('#globalDate').value || today();
+  const to = state.reportFilters.to || from;
+  return { from, to };
+}
+
+function reportOptions(list) { return [...new Set(list.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b))); }
+
+function reportFilterBar(kind, from, to, people, types, categories) {
   const rf = state.reportFilters;
-  const fromD = rf.from || $('#globalDate').value || today();
-  const toD = rf.to || fromD;
-  const rangeLabel = fromD === toD ? fromD : `${fromD} to ${toD}`;
-  const people = deliveryBoys();
-
-  let es = state.rows.entries.filter(x => x.entry_date >= fromD && x.entry_date <= toD);
-  let ex = state.rows.expenses.filter(x => x.expense_date >= fromD && x.expense_date <= toD);
-  let cc = state.rows.cash_counts.filter(x => x.cash_date >= fromD && x.cash_date <= toD);
-
-  if (rf.person) { es = es.filter(x => x.staff_name === rf.person); cc = cc.filter(x => x.delivery_person === rf.person); }
-  if (rf.type) es = es.filter(x => x.cylinder_type === rf.type);
-  if (rf.payment) es = es.filter(x => x.payment_status === rf.payment);
-
-  const sales = es.reduce((a,x)=>a+Number(x.amount||0),0), prepaid=es.reduce((a,x)=>a+Number(x.prepaid_amount||0),0), cash=es.reduce((a,x)=>a+Number(x.cash_amount||0),0), inhand=es.reduce((a,x)=>a+Number(x.in_hand_amount||0),0), expensesTotal = ex.reduce((a,x)=>a+Number(x.amount||0),0), cashCounted=cc.reduce((a,x)=>a+Number(x.total_cash||0),0);
-  $('#content').innerHTML = `
-  <div class="panel"><div class="panel-head"><h3>Filters</h3></div>
+  const isIncome = kind === 'income';
+  return `<div class="panel report-filters"><div class="panel-head"><h3>${isIncome?'Income':'Expense'} filters</h3><small>Use any combination of filters</small></div>
     <div class="form-grid">
-      <div class="form-group"><label>From date</label><input type="date" id="rf_from" value="${esc(fromD)}"></div>
-      <div class="form-group"><label>To date</label><input type="date" id="rf_to" value="${esc(toD)}"></div>
-      <div class="form-group"><label>Delivery person</label><select id="rf_person"><option value="">All</option>${people.map(p=>`<option value="${esc(p)}" ${rf.person===p?'selected':''}>${esc(p)}</option>`).join('')}</select></div>
-      <div class="form-group"><label>Cylinder type</label><select id="rf_type"><option value="">All</option>${cylinderTypes.map(t=>`<option value="${esc(t)}" ${rf.type===t?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
-      <div class="form-group"><label>Payment status</label><select id="rf_payment"><option value="">All</option>${['Paid','Pending','Partial'].map(p=>`<option value="${p}" ${rf.payment===p?'selected':''}>${p}</option>`).join('')}</select></div>
+      <div class="form-group"><label>From date</label><input type="date" id="rf_from" value="${esc(from)}"></div>
+      <div class="form-group"><label>To date</label><input type="date" id="rf_to" value="${esc(to)}"></div>
+      <div class="form-group"><label>Staff / Delivery Boy</label><select id="rf_person"><option value="">All staff</option>${people.map(x=>`<option value="${esc(x)}" ${rf.person===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Cylinder Type</label><select id="rf_type"><option value="">All cylinders</option>${types.map(x=>`<option value="${esc(x)}" ${rf.type===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+      ${isIncome ? `<div class="form-group"><label>Customer</label><select id="rf_customer"><option value="">All customers</option>${reportOptions(state.rows.entries.map(x=>x.customer_name)).map(x=>`<option value="${esc(x)}" ${rf.customer===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Payment Status</label><select id="rf_payment"><option value="">All statuses</option>${['Paid','Partial','Pending'].map(x=>`<option value="${x}" ${rf.payment===x?'selected':''}>${x}</option>`).join('')}</select></div>` : `<div class="form-group"><label>Expense Category</label><select id="rf_category"><option value="">All categories</option>${categories.map(x=>`<option value="${esc(x)}" ${rf.category===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>`}
+      <div class="form-group"><label>Payment Method</label><select id="rf_payment_method"><option value="">All methods</option>${['Cash','GPay','Bank','Other'].map(x=>`<option value="${x}" ${rf.paymentMethod===x?'selected':''}>${x}</option>`).join('')}</select></div>
     </div>
-    <div class="modal-actions"><button class="btn secondary" onclick="resetReportFilters()">Reset</button><button class="btn" onclick="applyReportFilters()">Apply Filters</button></div>
-  </div>
-  <div class="cards"><div class="card metric"><div class="top">SALES</div><div class="value">${money(sales)}</div><div class="sub">${esc(rangeLabel)}</div></div><div class="card metric"><div class="top">PREPAID</div><div class="value">${money(prepaid)}</div></div><div class="card metric"><div class="top">CASH / IN HAND</div><div class="value">${money(cash+inhand)}</div></div><div class="card metric"><div class="top">CASH COUNTED</div><div class="value">${money(cashCounted)}</div></div></div>
-  <div class="panel"><div class="panel-head"><h3>Report — ${esc(rangeLabel)}</h3><div class="toolbar"><button class="btn secondary" onclick="exportExcel()">Export Excel</button></div></div>
-  <div class="summary-list"><div class="summary-row"><span>Sales</span><b>${money(sales)}</b></div><div class="summary-row"><span>Prepaid</span><b>${money(prepaid)}</b></div><div class="summary-row"><span>Cash</span><b>${money(cash)}</b></div><div class="summary-row"><span>Cash handed in / in hand</span><b>${money(inhand)}</b></div><div class="summary-row"><span>Expenses</span><b>${money(expensesTotal)}</b></div></div></div>
-  <div class="panel"><div class="panel-head"><h3>Delivery report</h3></div>${table(actionsHeader(['Date','Customer','Delivery Person','Type','Qty','Cylinder Price','Amount','Payment','Prepaid','Cash','In Hand','Cylinder in Hand','Attendance','Cash Counted','Tally']),es,r=>{ const t=tallyFor(r); return [esc(r.entry_date),esc(r.customer_name),esc(r.staff_name),esc(r.cylinder_type),esc(r.quantity),money(r.rate),money(r.amount),esc(r.payment_status),money(r.prepaid_amount),money(r.cash_amount),money(r.in_hand_amount),esc(r.cylinder_in_hand),esc(attendanceFor(r.entry_date,r.staff_name)),money(r.denomination_total),t.label]; },'entries')}</div>`;
+    <div class="modal-actions"><button class="btn secondary" onclick="resetReportFilters()">Reset</button><button class="btn" onclick="applyReportFilters('${kind}')">Apply Filters</button></div>
+  </div>`;
 }
 
-function applyReportFilters() {
-  state.reportFilters = { from: $('#rf_from').value || today(), to: $('#rf_to').value || $('#rf_from').value || today(), person: $('#rf_person').value, type: $('#rf_type').value, payment: $('#rf_payment').value };
-  reports();
+function incomeReport() {
+  const rf=state.reportFilters, {from,to}=reportDateDefaults();
+  let rows=state.rows.entries.filter(x=>x.entry_date>=from&&x.entry_date<=to);
+  if(rf.person) rows=rows.filter(x=>x.staff_name===rf.person);
+  if(rf.type) rows=rows.filter(x=>x.cylinder_type===rf.type);
+  if(rf.payment) rows=rows.filter(x=>x.payment_status===rf.payment);
+  if(rf.paymentMethod) rows=rows.filter(x=>(x.payment_method||x.payment_status)===rf.paymentMethod);
+  if(rf.customer) rows=rows.filter(x=>x.customer_name===rf.customer);
+  const total=rows.reduce((a,x)=>a+Number(x.amount||0),0), qty=rows.reduce((a,x)=>a+Number(x.quantity||0),0);
+  const cash=rows.reduce((a,x)=>a+Number(x.cash_amount||0),0), prepaid=rows.reduce((a,x)=>a+Number(x.prepaid_amount||0),0);
+  const online=rows.reduce((a,x)=>a+Number(x.gpay_1kg_amount||0)+Number(x.gpay_5kg_amount||0)+Number(x.other_gpay_amount||0),0);
+  const byCylinder={}; rows.forEach(x=>{const k=x.cylinder_type||'Unknown';byCylinder[k]=(byCylinder[k]||0)+Number(x.amount||0);});
+  const byStaff={}; rows.forEach(x=>{const k=x.staff_name||'Unassigned';byStaff[k]=(byStaff[k]||0)+Number(x.amount||0);});
+  const range=from===to?from:`${from} to ${to}`;
+  $('#content').innerHTML=`${reportFilterBar('income',from,to,deliveryBoys(),cylinderTypes,[])}
+  <div class="cards"><div class="card metric"><div class="top">TOTAL INCOME</div><div class="value">${money(total)}</div><div class="sub">${esc(range)}</div></div><div class="card metric"><div class="top">CYLINDERS</div><div class="value">${qty}</div><div class="sub">Filtered quantity</div></div><div class="card metric"><div class="top">CASH</div><div class="value">${money(cash)}</div></div><div class="card metric"><div class="top">ONLINE / GPAY</div><div class="value">${money(online)}</div><div class="sub">Prepaid: ${money(prepaid)}</div></div></div>
+  <div class="report-grid"><div class="panel"><div class="panel-head"><h3>Cylinder-wise income</h3></div>${summaryTable(byCylinder,'Cylinder','Income')}</div><div class="panel"><div class="panel-head"><h3>Staff-wise income</h3></div>${summaryTable(byStaff,'Staff','Income')}</div></div>
+  <div class="panel"><div class="panel-head"><h3>Income transactions</h3><div class="toolbar"><button class="btn secondary" onclick="exportFilteredReport('income')">Export Excel</button></div></div>${table(['Date','Customer','Staff','Cylinder','Qty','Rate','Amount','Payment'],rows,r=>[esc(r.entry_date),esc(r.customer_name||'—'),esc(r.staff_name||'—'),esc(r.cylinder_type),esc(r.quantity),money(r.rate),money(r.amount),esc(r.payment_status||'—')])}</div>`;
 }
-function resetReportFilters() {
-  state.reportFilters = { from: '', to: '', person: '', type: '', payment: '' };
-  reports();
+
+function expenseReport() {
+  const rf=state.reportFilters, {from,to}=reportDateDefaults();
+  let rows=state.rows.expenses.filter(x=>x.expense_date>=from&&x.expense_date<=to);
+  if(rf.person) rows=rows.filter(x=>x.staff_name===rf.person);
+  if(rf.type) rows=rows.filter(x=>x.cylinder_type===rf.type);
+  if(rf.category) rows=rows.filter(x=>x.category===rf.category);
+  if(rf.paymentMethod) rows=rows.filter(x=>x.payment_method===rf.paymentMethod);
+  const total=rows.reduce((a,x)=>a+Number(x.amount||0),0);
+  const byCategory={}, byStaff={}, byCylinder={};
+  rows.forEach(x=>{const c=x.category||'Other';byCategory[c]=(byCategory[c]||0)+Number(x.amount||0);const s=x.staff_name||'Unassigned';byStaff[s]=(byStaff[s]||0)+Number(x.amount||0);const t=x.cylinder_type||'Unassigned';byCylinder[t]=(byCylinder[t]||0)+Number(x.amount||0);});
+  const range=from===to?from:`${from} to ${to}`;
+  $('#content').innerHTML=`${reportFilterBar('expense',from,to,reportOptions(state.rows.expenses.map(x=>x.staff_name).concat(deliveryBoys())),reportOptions(state.rows.expenses.map(x=>x.cylinder_type).concat(cylinderTypes)),reportOptions(state.rows.expenses.map(x=>x.category)))}
+  <div class="cards"><div class="card metric"><div class="top">TOTAL EXPENSE</div><div class="value">${money(total)}</div><div class="sub">${esc(range)}</div></div><div class="card metric"><div class="top">RECORDS</div><div class="value">${rows.length}</div></div><div class="card metric"><div class="top">CASH EXPENSE</div><div class="value">${money(rows.filter(x=>x.payment_method==='Cash').reduce((a,x)=>a+Number(x.amount||0),0))}</div></div><div class="card metric"><div class="top">ONLINE / BANK</div><div class="value">${money(rows.filter(x=>['GPay','Bank'].includes(x.payment_method)).reduce((a,x)=>a+Number(x.amount||0),0))}</div></div></div>
+  <div class="report-grid"><div class="panel"><div class="panel-head"><h3>Category-wise expenses</h3></div>${summaryTable(byCategory,'Category','Expense')}</div><div class="panel"><div class="panel-head"><h3>Staff-wise expenses</h3></div>${summaryTable(byStaff,'Staff','Expense')}</div></div>
+  <div class="panel"><div class="panel-head"><h3>Cylinder-wise expenses</h3></div>${summaryTable(byCylinder,'Cylinder','Expense')}</div>
+  <div class="panel"><div class="panel-head"><h3>Expense transactions</h3><div class="toolbar"><button class="btn secondary" onclick="exportFilteredReport('expense')">Export Excel</button></div></div>${table(['Date','Category','Staff','Cylinder','Description','Amount','Payment'],rows,r=>[esc(r.expense_date),esc(r.category),esc(r.staff_name||'—'),esc(r.cylinder_type||'—'),esc(r.description||'—'),money(r.amount),esc(r.payment_method||'—')],'expenses')}</div>`;
+}
+
+function summaryTable(obj,label,valueLabel){const entries=Object.entries(obj).sort((a,b)=>b[1]-a[1]);if(!entries.length)return '<div class="empty">No matching records.</div>';return `<div class="mini-report"><div><b>${esc(label)}</b><b>${valueLabel}</b></div>${entries.map(([k,v])=>`<div><span>${esc(k)}</span><b>${money(v)}</b></div>`).join('')}</div>`;}
+
+function applyReportFilters(kind) {
+  state.reportFilters={from:$('#rf_from').value||today(),to:$('#rf_to').value||$('#rf_from').value||today(),person:$('#rf_person').value,type:$('#rf_type').value,payment:$('#rf_payment')?.value||'',paymentMethod:$('#rf_payment_method').value,category:$('#rf_category')?.value||'',customer:$('#rf_customer')?.value||''};
+  kind==='expense'?expenseReport():incomeReport();
+}
+function resetReportFilters() { state.reportFilters={from:'',to:'',person:'',type:'',payment:'',paymentMethod:'',category:'',customer:''}; state.page==='expense-reports'?expenseReport():incomeReport(); }
+
+function exportFilteredReport(kind){
+  if(!window.XLSX){toast('Excel library is not loaded.',true);return;}
+  const rf=state.reportFilters,{from,to}=reportDateDefaults();
+  let rows=(kind==='income'?state.rows.entries:state.rows.expenses).filter(x=>(kind==='income'?x.entry_date:x.expense_date)>=from&&(kind==='income'?x.entry_date:x.expense_date)<=to);
+  if(rf.person) rows=rows.filter(x=>x.staff_name===rf.person || (kind==='expense'&&x.delivery_person===rf.person));
+  if(rf.type) rows=rows.filter(x=>x.cylinder_type===rf.type);
+  if(kind==='income'){if(rf.payment)rows=rows.filter(x=>x.payment_status===rf.payment);if(rf.customer)rows=rows.filter(x=>x.customer_name===rf.customer);if(rf.paymentMethod)rows=rows.filter(x=>(x.payment_method||x.payment_status)===rf.paymentMethod);}
+  else {if(rf.category)rows=rows.filter(x=>x.category===rf.category);if(rf.paymentMethod)rows=rows.filter(x=>x.payment_method===rf.paymentMethod);}
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),kind==='income'?'Income Report':'Expense Report');XLSX.writeFile(wb,kind==='income'?'GasFlow_Income_Report.xlsx':'GasFlow_Expense_Report.xlsx');
 }
 
 function form(fields) {
@@ -534,13 +731,16 @@ function openVehicle(row) {
 }
 function openExpense(row) {
   const isEdit = !!row;
+  const people=deliveryBoys();
   openModal(isEdit?'Edit Expense':'Add Expense', form([
     {id:'date',label:'Date',type:'date',value:isEdit?row.expense_date:$('#globalDate').value},
+    {id:'staff',label:'Staff / Delivery Boy',type:'select',options:people,value:isEdit?row.staff_name:undefined},
+    {id:'cylinder',label:'Cylinder Type',type:'select',options:['',...cylinderTypes],value:isEdit?row.cylinder_type:undefined},
     {id:'category',label:'Category',type:'select',options:['DIESEL / PETROL','ONLINE PAYMENT','SALARY + INCENTIVES + OTHERS','MAINTENANCE','OTHER'],value:isEdit?row.category:undefined},
     {id:'desc',label:'Description',required:false,value:isEdit?row.description:''},
     {id:'amount',label:'Amount',type:'number',value:isEdit?row.amount:0},
     {id:'payment',label:'Payment method',type:'select',options:['Cash','GPay','Bank','Other'],value:isEdit?row.payment_method:undefined}
-  ]), () => { const p={expense_date:v('date'),category:v('category'),description:v('desc'),amount:+v('amount'),payment_method:v('payment')}; isEdit?update('expenses',row.id,p):insert('expenses',p); });
+  ]), () => { const p={expense_date:v('date'),staff_name:v('staff'),cylinder_type:v('cylinder')||null,category:v('category'),description:v('desc'),amount:+v('amount'),payment_method:v('payment')}; isEdit?update('expenses',row.id,p):insert('expenses',p); });
 }
 function v(id) { return $(`#f_${id}`).value; }
 
