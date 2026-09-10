@@ -13,6 +13,7 @@ const state = {
   reportFilters: { from: '', to: '', person: '', type: '', payment: '' }
 };
 let sb = null;
+let entryItemsDraft = [];
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function money(n) { return '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
@@ -256,7 +257,7 @@ function entries() {
   } else if (tab === 'prices') {
     body = `<div class="panel"><div class="panel-head"><h3>Cylinder Prices</h3><button class="btn" onclick="openRate()">＋ Update Price</button></div>${table(actionsHeader(['Cylinder Type','Price','Updated']), state.rows.rates, r => [esc(r.cylinder_type),money(r.rate),esc(r.updated_at ? new Date(r.updated_at).toLocaleString('en-IN') : '')], 'rates')}</div>`;
   } else {
-    body = `<div class="panel"><div class="panel-head"><h3>Daily delivery & sales records</h3><button class="btn" onclick="openEntry()">＋ Add Entry</button></div>${table(actionsHeader(['Date','Customer','Delivery Person','Type','Qty','Cylinder Price','Amount','Payment','Prepaid','Cash','In Hand','Cylinder in Hand','Attendance']), state.rows.entries, r => [esc(r.entry_date),esc(r.customer_name),esc(r.staff_name),esc(r.cylinder_type),esc(r.quantity),money(r.rate),money(r.amount),`<span class="badge ${r.payment_status==='Paid'?'':'red'}">${esc(r.payment_status||'Pending')}</span>`,money(r.prepaid_amount),money(r.cash_amount),money(r.in_hand_amount),esc(r.cylinder_in_hand),`<span class="badge ${attendanceFor(r.entry_date,r.staff_name)==='Present'?'':'red'}">${esc(attendanceFor(r.entry_date,r.staff_name))}</span>`], 'entries')}</div>`;
+    body = `<div class="panel"><div class="panel-head"><h3>Daily delivery & sales records</h3><button class="btn" onclick="openEntry()">＋ Add Entry</button></div>${table(actionsHeader(['Date','Customer','Delivery Person','Type','Qty','Cylinder Price','Amount','Payment','Prepaid','Cash','In Hand','Cylinder in Hand','Attendance','Cash Counted','Tally']), state.rows.entries, r => { const t=tallyFor(r); return [esc(r.entry_date),esc(r.customer_name),esc(r.staff_name),esc(r.cylinder_type),esc(r.quantity),money(r.rate),money(r.amount),`<span class="badge ${r.payment_status==='Paid'?'':'red'}">${esc(r.payment_status||'Pending')}</span>`,money(r.prepaid_amount),money(r.cash_amount),money(r.in_hand_amount),esc(r.cylinder_in_hand),`<span class="badge ${attendanceFor(r.entry_date,r.staff_name)==='Present'?'':'red'}">${esc(attendanceFor(r.entry_date,r.staff_name))}</span>`,money(r.denomination_total),`<span class="badge ${t.ok?'':'red'}">${esc(t.label)}</span>`]; }, 'entries')}</div>`;
   }
   $('#content').innerHTML = tabBar + body;
 }
@@ -276,10 +277,9 @@ function reports() {
 
   let es = state.rows.entries.filter(x => x.entry_date >= fromD && x.entry_date <= toD);
   let ex = state.rows.expenses.filter(x => x.expense_date >= fromD && x.expense_date <= toD);
-  let at = state.rows.attendance.filter(x => x.attendance_date >= fromD && x.attendance_date <= toD);
   let cc = state.rows.cash_counts.filter(x => x.cash_date >= fromD && x.cash_date <= toD);
 
-  if (rf.person) { es = es.filter(x => x.staff_name === rf.person); at = at.filter(x => x.delivery_person === rf.person); cc = cc.filter(x => x.delivery_person === rf.person); }
+  if (rf.person) { es = es.filter(x => x.staff_name === rf.person); cc = cc.filter(x => x.delivery_person === rf.person); }
   if (rf.type) es = es.filter(x => x.cylinder_type === rf.type);
   if (rf.payment) es = es.filter(x => x.payment_status === rf.payment);
 
@@ -296,12 +296,9 @@ function reports() {
     <div class="modal-actions"><button class="btn secondary" onclick="resetReportFilters()">Reset</button><button class="btn" onclick="applyReportFilters()">Apply Filters</button></div>
   </div>
   <div class="cards"><div class="card metric"><div class="top">SALES</div><div class="value">${money(sales)}</div><div class="sub">${esc(rangeLabel)}</div></div><div class="card metric"><div class="top">PREPAID</div><div class="value">${money(prepaid)}</div></div><div class="card metric"><div class="top">CASH / IN HAND</div><div class="value">${money(cash+inhand)}</div></div><div class="card metric"><div class="top">CASH COUNTED</div><div class="value">${money(cashCounted)}</div></div></div>
-  <div class="panel"><div class="panel-head"><h3>Report — ${esc(rangeLabel)}</h3><div class="toolbar"><button class="btn" onclick="openAttendance()">＋ Attendance</button><button class="btn" onclick="openCashCount()">＋ Cash Denomination</button><button class="btn secondary" onclick="exportExcel()">Export Excel</button></div></div>
+  <div class="panel"><div class="panel-head"><h3>Report — ${esc(rangeLabel)}</h3><div class="toolbar"><button class="btn secondary" onclick="exportExcel()">Export Excel</button></div></div>
   <div class="summary-list"><div class="summary-row"><span>Sales</span><b>${money(sales)}</b></div><div class="summary-row"><span>Prepaid</span><b>${money(prepaid)}</b></div><div class="summary-row"><span>Cash</span><b>${money(cash)}</b></div><div class="summary-row"><span>Cash handed in / in hand</span><b>${money(inhand)}</b></div><div class="summary-row"><span>Expenses</span><b>${money(expensesTotal)}</b></div></div></div>
-  <div class="panel"><div class="panel-head"><h3>Cylinder Prices</h3><button class="btn" onclick="openRate()">＋ Update Price</button></div>${table(actionsHeader(['Cylinder Type','Price','Updated']),state.rows.rates,r=>[esc(r.cylinder_type),money(r.rate),esc(r.updated_at ? new Date(r.updated_at).toLocaleString('en-IN') : '')],'rates')}</div>
-  <div class="panel"><div class="panel-head"><h3>Attendance</h3></div>${table(actionsHeader(['Date','Delivery Person','Status','Note']),at,r=>[esc(r.attendance_date),esc(r.delivery_person),esc(r.status),esc(r.note)],'attendance')}</div>
-  <div class="panel"><div class="panel-head"><h3>Cash denominations</h3></div>${table(actionsHeader(['Date','Delivery Person','₹2000','₹500','₹200','₹100','₹50','₹20','₹10','₹5','₹2','₹1','Total']),cc,r=>[esc(r.cash_date),esc(r.delivery_person),r.d2000,r.d500,r.d200,r.d100,r.d50,r.d20,r.d10,r.d5,r.d2,r.d1,money(r.total_cash)],'cash_counts')}</div>
-  <div class="panel"><div class="panel-head"><h3>Delivery report</h3></div>${table(actionsHeader(['Date','Customer','Delivery Person','Type','Qty','Cylinder Price','Amount','Payment','Prepaid','Cash','In Hand','Cylinder in Hand','Attendance']),es,r=>[esc(r.entry_date),esc(r.customer_name),esc(r.staff_name),esc(r.cylinder_type),esc(r.quantity),money(r.rate),money(r.amount),esc(r.payment_status),money(r.prepaid_amount),money(r.cash_amount),money(r.in_hand_amount),esc(r.cylinder_in_hand),esc(attendanceFor(r.entry_date,r.staff_name))],'entries')}</div>`;
+  <div class="panel"><div class="panel-head"><h3>Delivery report</h3></div>${table(actionsHeader(['Date','Customer','Delivery Person','Type','Qty','Cylinder Price','Amount','Payment','Prepaid','Cash','In Hand','Cylinder in Hand','Attendance','Cash Counted','Tally']),es,r=>{ const t=tallyFor(r); return [esc(r.entry_date),esc(r.customer_name),esc(r.staff_name),esc(r.cylinder_type),esc(r.quantity),money(r.rate),money(r.amount),esc(r.payment_status),money(r.prepaid_amount),money(r.cash_amount),money(r.in_hand_amount),esc(r.cylinder_in_hand),esc(attendanceFor(r.entry_date,r.staff_name)),money(r.denomination_total),t.label]; },'entries')}</div>`;
 }
 
 function applyReportFilters() {
@@ -315,6 +312,7 @@ function resetReportFilters() {
 
 function form(fields) {
   return `<form id="dynamicForm" onsubmit="return submitDynamicForm(event)"><div class="form-grid">${fields.map(f => {
+    if (f.type === 'html') return `<div class="form-group full">${f.html}</div>`;
     const type = f.type || 'text';
     let control = '';
     if (type === 'select') control = `<select id="f_${f.id}" ${f.required===false?'':'required'}>${(f.options||[]).map(o=>`<option value="${esc(o)}" ${f.value!=null && String(o)===String(f.value)?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
@@ -339,6 +337,14 @@ function attendanceFor(date, person) {
   const rec = state.rows.attendance.find(a => a.attendance_date === date && a.delivery_person === person);
   return rec ? rec.status : '\u2014';
 }
+function tallyFor(r) {
+  const amount = Number(r.amount||0), prepaid = Number(r.prepaid_amount||0), counted = Number(r.denomination_total||0);
+  const balance = amount - prepaid;
+  if (!counted && !balance) return { label: '\u2014', ok: true };
+  const diff = counted - balance;
+  if (diff === 0) return { label: 'Matched', ok: true };
+  return { label: (diff>0?'Excess ':'Short ') + money(Math.abs(diff)), ok: false };
+}
 async function autoMarkAttendance(date, person) {
   if (!sb || !date || !person) return;
   try {
@@ -349,31 +355,107 @@ async function autoMarkAttendance(date, person) {
     if (error) console.error('Auto attendance:', error);
   } catch (e) { console.error('Auto attendance failed:', e); }
 }
+const denomKeys = ['d2000','d500','d200','d100','d50','d20','d10','d5','d2','d1'];
+const denomVal = { d2000:2000, d500:500, d200:200, d100:100, d50:50, d20:20, d10:10, d5:5, d2:2, d1:1 };
+function itemsListHtml() {
+  if (!entryItemsDraft.length) return '<div class="empty-small">No cylinder lines added yet. Add at least one below.</div>';
+  return entryItemsDraft.map((it,i) => { const rate = currentRate(it.type); return `<div class="item-row"><span>${esc(it.type)}</span><span>${esc(it.qty)} \u00d7 ${money(rate)}</span><b>${money(it.qty*rate)}</b><button type="button" class="btn danger small" onclick="removeEntryItem(${i})">Remove</button></div>`; }).join('');
+}
+function renderEntryItems() {
+  const list = $('#itemsList');
+  if (list) list.innerHTML = itemsListHtml();
+  recalcEntryTally();
+}
+function addEntryItem() {
+  const typeEl = $('#newItemType'), qtyEl = $('#newItemQty');
+  if (!typeEl || !qtyEl) return;
+  const qty = Number(qtyEl.value) || 0;
+  if (qty <= 0) { toast('Enter a quantity greater than 0', true); return; }
+  entryItemsDraft.push({ type: typeEl.value, qty });
+  qtyEl.value = 1;
+  renderEntryItems();
+}
+function removeEntryItem(i) { entryItemsDraft.splice(i,1); renderEntryItems(); }
+function recalcEntryTally() {
+  const amtEl=$('#tallyAmount'), prepEl=$('#tallyPrepaid'), balEl=$('#tallyBalance'), cntEl=$('#tallyCounted'), diffEl=$('#tallyDiff'), prepaidInput=$('#f_prepaid');
+  if (!amtEl) return;
+  const amount = entryItemsDraft.reduce((a,it)=>a + it.qty*currentRate(it.type), 0);
+  const prepaid = Number(prepaidInput && prepaidInput.value) || 0;
+  const balance = amount - prepaid;
+  let counted = 0;
+  denomKeys.forEach(k => { const el = $('#f_'+k); counted += (Number(el && el.value)||0) * denomVal[k]; });
+  const diff = counted - balance;
+  amtEl.textContent = money(amount); prepEl.textContent = money(prepaid); balEl.textContent = money(balance); cntEl.textContent = money(counted);
+  diffEl.textContent = diff===0 ? 'Matched \u2713' : (diff>0 ? 'Excess '+money(Math.abs(diff)) : 'Short '+money(Math.abs(diff)));
+  diffEl.className = diff===0 ? 'tally-ok' : 'tally-bad';
+}
+async function saveEntry(rows, editId) {
+  if (!sb) { toast('Supabase is not connected.', true); return; }
+  try {
+    if (editId) {
+      const { error: e1 } = await sb.from('entries').update(rows[0]).eq('id', editId);
+      if (e1) throw e1;
+      if (rows.length > 1) { const { error: e2 } = await sb.from('entries').insert(rows.slice(1)); if (e2) throw e2; }
+    } else {
+      const { error } = await sb.from('entries').insert(rows);
+      if (error) throw error;
+    }
+    closeModal();
+    toast(rows.length > 1 ? `Saved ${rows.length} cylinder lines` : 'Saved successfully');
+    await refresh();
+  } catch (err) { console.error('Save entry:', err); toast(err.message || 'Failed to save entry', true); }
+}
 function openEntry(row) {
   const types=cylinderTypes;
   const isEdit = !!row;
+  entryItemsDraft = isEdit ? [{ type: row.cylinder_type, qty: Number(row.quantity)||1 }] : [{ type: types[0], qty: 1 }];
+  const tallyHtml = `<div class="tally-box" id="tallyBox"><h4>Cash Tally</h4>
+    <div class="tally-row"><span>Amount (Cylinders \u00d7 Price)</span><b id="tallyAmount">\u20b90</b></div>
+    <div class="tally-row"><span>Prepaid</span><b id="tallyPrepaid">\u20b90</b></div>
+    <div class="tally-row"><span>Balance (Postpaid)</span><b id="tallyBalance">\u20b90</b></div>
+    <div class="tally-row"><span>Cash Counted (Denomination)</span><b id="tallyCounted">\u20b90</b></div>
+    <div class="tally-row total"><span>Difference</span><b id="tallyDiff">\u20b90</b></div>
+  </div>`;
+  const itemsHtml = `<h4 class="form-subhead">Cylinder Items</h4>
+    <div class="items-list" id="itemsList"></div>
+    <div class="item-add-row">
+      <select id="newItemType">${types.map(t=>`<option value="${esc(t)}">${esc(t)} \u2014 ${money(currentRate(t))}</option>`).join('')}</select>
+      <input id="newItemQty" type="number" min="1" value="1">
+      <button type="button" class="btn secondary" onclick="addEntryItem()">＋ Add Line</button>
+    </div>`;
   openModal(isEdit?'Edit Daily Entry':'Add Daily Entry', form([
     {id:'date',label:'Date',type:'date',value:isEdit?row.entry_date:$('#globalDate').value},
     {id:'customer',label:'Customer name',required:false,value:isEdit?row.customer_name:''},
     deliverySelect('staff','Delivery person',isEdit?row.staff_name:undefined),
-    {id:'type',label:'Cylinder type',type:'select',options:types,value:isEdit?row.cylinder_type:types[0]},
-    {id:'qty',label:'Quantity',type:'number',value:isEdit?row.quantity:1},
-    {id:'rate',label:'Cylinder price (set in Reports \u2192 Update Price)',type:'text',value:isEdit?row.rate:currentRate(types[0]),readonly:true},
+    {type:'html',html:itemsHtml},
     {id:'cylinderinhand',label:'Cylinder in Hand',type:'number',value:isEdit?row.cylinder_in_hand:0,required:false},
     {id:'payment',label:'Payment status',type:'select',options:['Paid','Pending','Partial'],value:isEdit?row.payment_status:'Paid'},
     {id:'prepaid',label:'Prepaid amount',type:'number',value:isEdit?row.prepaid_amount:0,required:false},
     {id:'cash',label:'Cash received',type:'number',value:isEdit?row.cash_amount:0,required:false},
     {id:'inhand',label:'Cash in hand / handed in',type:'number',value:isEdit?row.in_hand_amount:0,required:false},
-    {id:'notes',label:'Notes',type:'textarea',required:false,full:true,value:isEdit?row.notes:''}
+    {id:'notes',label:'Notes',type:'textarea',required:false,full:true,value:isEdit?row.notes:''},
+    {type:'html',html:'<h4 class="form-subhead">Cash Denomination Count</h4>'},
+    ...denomKeys.map(k=>({id:k,label:'\u20b9'+k.slice(1)+' notes/coins',type:'number',value:isEdit?row[k]:0,required:false})),
+    {type:'html',html:tallyHtml}
   ]), () => {
-    const p = {entry_date:v('date'),customer_name:v('customer'),staff_name:v('staff'),cylinder_type:v('type'),quantity:+v('qty'),rate:+v('rate'),cylinder_in_hand:+v('cylinderinhand'),payment_status:v('payment'),prepaid_amount:+v('prepaid'),cash_amount:+v('cash'),in_hand_amount:+v('inhand'),notes:v('notes')};
-    (async () => {
-      await autoMarkAttendance(p.entry_date, p.staff_name);
-      if (isEdit) await update('entries', row.id, p); else await insert('entries', p);
-    })();
+    if (!entryItemsDraft.length) { toast('Add at least one cylinder line before saving.', true); return; }
+    const shared = {entry_date:v('date'),customer_name:v('customer'),staff_name:v('staff'),cylinder_in_hand:+v('cylinderinhand'),payment_status:v('payment'),notes:v('notes')};
+    const prepaid = +v('prepaid'), cash = +v('cash'), inhand = +v('inhand');
+    let denomTotal = 0; const denomFields = {};
+    denomKeys.forEach(k => { const n = +v(k); denomFields[k] = n; denomTotal += n * denomVal[k]; });
+    const zeroDenom = Object.fromEntries(denomKeys.map(k=>[k,0]));
+    const groupId = (isEdit && row.group_id) ? row.group_id : (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
+    const rows = entryItemsDraft.map((it,i) => {
+      const primary = i === 0;
+      return { ...shared, cylinder_type: it.type, quantity: it.qty, rate: currentRate(it.type), group_id: groupId, is_primary: primary,
+        prepaid_amount: primary ? prepaid : 0, cash_amount: primary ? cash : 0, in_hand_amount: primary ? inhand : 0,
+        ...(primary ? denomFields : zeroDenom), denomination_total: primary ? denomTotal : 0 };
+    });
+    (async () => { await autoMarkAttendance(shared.entry_date, shared.staff_name); await saveEntry(rows, isEdit ? row.id : null); })();
   });
-  const typeEl = $('#f_type'), rateEl = $('#f_rate');
-  if (typeEl && rateEl) typeEl.addEventListener('change', () => { rateEl.value = currentRate(typeEl.value); });
+  renderEntryItems();
+  const prepaidEl = $('#f_prepaid');
+  [prepaidEl, ...denomKeys.map(k=>$('#f_'+k))].forEach(el => el && el.addEventListener('input', recalcEntryTally));
 }
 function openCustomer(row) {
   const isEdit = !!row;
