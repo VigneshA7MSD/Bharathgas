@@ -204,3 +204,52 @@ tbody tr:hover{background:var(--paper)}
   .metric .value{font-size:19px}
   .login{grid-template-columns:1fr}
 }
+
+
+/* ---------- Notebook-style Daily Entry ---------- */
+.daily-entry{display:block}
+.daily-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.entry-section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.entry-section.full{grid-column:1/-1}
+.entry-section-title{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.entry-section-title>div{display:flex;align-items:center;gap:10px}
+.entry-section-title span{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:var(--flame-grad);color:#1a0f08;font-size:10px;font-weight:800}
+.entry-section-title h3{margin:0;font-size:14px}
+.entry-section-title small{color:var(--muted);font-size:10.5px;text-align:right;max-width:250px}
+.entry-line-head,.daily-item{display:grid;grid-template-columns:1.5fr .8fr .6fr .9fr auto;align-items:center;gap:10px}
+.entry-line-head{padding:0 10px 7px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase}
+.daily-items{display:grid;gap:7px}
+.daily-item{padding:9px 10px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--paper);font-size:12px}
+.daily-item span:first-child{font-weight:700}
+.daily-item b{text-align:right}
+.daily-add-row{display:grid;grid-template-columns:1fr 100px auto;gap:8px;margin-top:10px}
+.daily-add-row select,.daily-add-row input{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius-sm);padding:10px 12px;width:100%}
+.compact-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.compact-fields label,.expense-grid label,.den-grid label{display:grid;gap:5px;color:var(--muted);font-size:10.5px;font-weight:600}
+.compact-fields input,.compact-fields select,.expense-grid input,.den-grid input{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius-sm);padding:9px 10px;width:100%;color:var(--text)}
+.expense-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.den-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px}
+.cash-total{margin-top:13px;border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;align-items:center}
+.cash-total span{color:var(--muted);font-size:11px;font-weight:700}
+.cash-total strong{font-family:var(--font-head);font-size:20px}
+.tally-section{background:linear-gradient(135deg,var(--panel),var(--paper))}
+.tally-large{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.tally-large>div{border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px;background:var(--panel)}
+.tally-large span{display:block;color:var(--muted);font-size:10.5px;font-weight:600}
+.tally-large b{display:block;font-family:var(--font-head);font-size:19px;margin-top:7px}
+.tally-large .balance{grid-column:1/-1;background:var(--good-bg);border-color:transparent}
+.tally-large .balance b{color:var(--good);font-size:23px}
+.tally-negative{color:var(--danger)!important}
+.daily-save-bar{margin:16px 0;display:flex;align-items:center;justify-content:space-between;gap:15px;background:var(--ink);color:#fff;border-radius:var(--radius);padding:15px 18px;box-shadow:var(--shadow)}
+.daily-save-bar b{display:block;font-size:13px}.daily-save-bar span{display:block;color:#aeb8c8;font-size:10.5px;margin-top:3px}
+.daily-save-bar .btn{white-space:nowrap}
+.daily-history{margin-top:0}
+@media(max-width:800px){.daily-grid{grid-template-columns:1fr}.entry-section.full{grid-column:auto}.den-grid{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:600px){.entry-line-head{display:none}.daily-item{grid-template-columns:1fr 1fr 1fr auto}.daily-item b{grid-column:3}.daily-item .btn{grid-column:4;grid-row:1 / span 2}.daily-add-row{grid-template-columns:1fr 75px}.daily-add-row .btn{grid-column:1/-1}.compact-fields,.expense-grid{grid-template-columns:1fr}.den-grid{grid-template-columns:repeat(2,1fr)}.tally-large{grid-template-columns:1fr}.tally-large .balance{grid-column:auto}.daily-save-bar{align-items:flex-start;flex-direction:column}}
+
+
+/* ---------- Separate Income / Expense Reports ---------- */
+.report-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.mini-report{display:grid;gap:0}.mini-report>div{display:grid;grid-template-columns:1fr auto;gap:12px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:12px}.mini-report>div:first-child{font-size:10px;color:var(--muted);text-transform:uppercase}.mini-report span{color:var(--text)}
+.report-filters .form-grid{margin-bottom:2px}
+@media(max-width:800px){.report-grid{grid-template-columns:1fr}}
