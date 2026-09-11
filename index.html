@@ -752,7 +752,7 @@ let dailyCylinderDraft = [];
 function initDailyEntryForm() {
   dailyCylinderDraft = [];
   renderDailyCylinders();
-  ['de_prepaid','de_online_cyl','de_gpay_cyl','de_gpay_1kg','de_gpay_5kg','de_other_gpay','de_office_cash','de_start_km','de_end_km', ...['2000','500','200','100','50','20','10','5','2','1'].map(x=>'de_d'+x), ...['bank_deposit','loadman_advance','salary','incentives','stationery','farm_expenses','hotel_expenses','kanika_expenses','tea','other_expenses','de_diesel_amt','de_maintenance']].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('input', recalcDailyEntry); });
+  ['de_prepaid','de_online_cyl','de_gpay_cyl','de_gpay_1kg','de_gpay_5kg','de_other_gpay','de_office_cash','de_start_km','de_end_km', ...['2000','500','200','100','50','20','10','5','2','1'].map(x=>'de_d'+x), ...['bank_deposit','loadman_advance','salary','incentives','stationery','farm_expenses','hotel_expenses','kanika_expenses','tea','other_expenses','de_diesel_amt','de_maintenance'], ...customFieldsForModule('entries').map(f=>'de_custom_'+f.id)].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('input', recalcDailyEntry); });
   const type=$('#de_type'), qty=$('#de_qty');
   if(type) type.addEventListener('change', recalcDailyEntry);
   recalcDailyEntry();
@@ -832,8 +832,17 @@ function renderDailyCylinders(){
   const el=$('#dailyItems'); if(!el) return;
   el.innerHTML=dailyCylinderDraft.length ? dailyCylinderDraft.map((it,i)=>{const rate=it.rate!=null?it.rate:currentRate(it.type), total=rate*it.qty; return `<div class="daily-item"><span>${esc(it.type)}</span><span>${money(rate)}</span><span>${esc(it.qty)}</span><b>${money(total)}</b><button type="button" class="btn danger small" onclick="removeDailyCylinder(${i})">Delete</button></div>`}).join('') : '<div class="empty-small">No cylinder selected. Choose a cylinder type and click Add Product.</div>';
 }
-function dailyIncome(){return dailyCylinderDraft.reduce((a,it)=>a+Number(it.qty||0)*(it.rate!=null?it.rate:currentRate(it.type)),0);}
-function dailyExpenses(){return ['bank_deposit','loadman_advance','salary','incentives','stationery','farm_expenses','hotel_expenses','kanika_expenses','tea','other_expenses'].reduce((a,id)=>a+Number($('#de_'+id)?.value||0),0)+Number($('#de_diesel_amt')?.value||0)+Number($('#de_maintenance')?.value||0);}
+// Custom fields tagged with a tally_type of 'income' or 'expense' (Custom Fields admin page,
+// "Affects Daily Entry Tally") get folded into the totals below using their live input value.
+function customFieldTallyTotal(kind){
+  return customFieldsForModule('entries').filter(f=>f.tally_type===kind).reduce((a,f)=>{
+    const el=$('#de_custom_'+f.id);
+    if(!el) return a;
+    return a + (el.type==='checkbox' ? 0 : (Number(el.value)||0));
+  },0);
+}
+function dailyIncome(){return dailyCylinderDraft.reduce((a,it)=>a+Number(it.qty||0)*(it.rate!=null?it.rate:currentRate(it.type)),0)+customFieldTallyTotal('income');}
+function dailyExpenses(){return ['bank_deposit','loadman_advance','salary','incentives','stationery','farm_expenses','hotel_expenses','kanika_expenses','tea','other_expenses'].reduce((a,id)=>a+Number($('#de_'+id)?.value||0),0)+Number($('#de_diesel_amt')?.value||0)+Number($('#de_maintenance')?.value||0)+customFieldTallyTotal('expense');}
 function dailyCash(){return ['2000','500','200','100','50','20','10','5','2','1'].reduce((a,d)=>a+Number($('#de_d'+d)?.value||0)*Number(d),0);}
 function recalcDailyEntry(){
   const start=Number($('#de_start_km')?.value||0), end=Number($('#de_end_km')?.value||0), diff=Math.max(0,end-start);
@@ -1149,7 +1158,8 @@ function entryFieldsPage(){
   const activeModule = state.customFieldsModule || 'entries';
   const tabBar = `<div class="tab-bar">${CUSTOM_FIELD_MODULES.map(m=>`<button class="tab-btn ${activeModule===m.id?'active':''}" onclick="switchCustomFieldsModule('${m.id}')">${esc(m.label)}</button>`).join('')}</div>`;
   const fields=[...state.rows.custom_fields].filter(f=>(f.module||'entries')===activeModule).sort((a,b)=>(a.display_order||0)-(b.display_order||0));
-  const body=fields.length?`<div class="table-wrap"><table><thead><tr><th>Field / Column</th><th>Type</th><th>Required</th><th>Reportable</th><th>Status</th><th>Options</th><th>Actions</th></tr></thead><tbody>${fields.map(f=>{const count=state.rows.custom_field_options.filter(o=>o.field_id===f.id).length;return `<tr><td><b>${esc(f.field_name)}</b></td><td>${esc(f.field_type)}</td><td>${f.is_required?'Yes':'No'}</td><td>${f.is_reportable?'Yes':'No'}</td><td>${f.is_active===false?'Inactive':'Active'}</td><td>${f.field_type==='dropdown'?count:'—'}</td><td class="row-actions"><button class="btn secondary small" onclick="openCustomField('${f.id}')">Edit</button>${f.field_type==='dropdown'?`<button class="btn secondary small" onclick="openCustomOptions('${f.id}')">Items</button>`:''}<button class="btn danger small" onclick="deleteCustomField('${f.id}')">Delete</button></td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">No extra fields configured for this form yet.</div>';
+  const tallyLabel = t => t==='income' ? '<span class="badge">Income</span>' : (t==='expense' ? '<span class="badge red">Expense</span>' : '—');
+  const body=fields.length?`<div class="table-wrap"><table><thead><tr><th>Field / Column</th><th>Type</th><th>Tally</th><th>Required</th><th>Reportable</th><th>Status</th><th>Options</th><th>Actions</th></tr></thead><tbody>${fields.map(f=>{const count=state.rows.custom_field_options.filter(o=>o.field_id===f.id).length;return `<tr><td><b>${esc(f.field_name)}</b></td><td>${esc(f.field_type)}</td><td>${tallyLabel(f.tally_type)}</td><td>${f.is_required?'Yes':'No'}</td><td>${f.is_reportable?'Yes':'No'}</td><td>${f.is_active===false?'Inactive':'Active'}</td><td>${f.field_type==='dropdown'?count:'—'}</td><td class="row-actions"><button class="btn secondary small" onclick="openCustomField('${f.id}')">Edit</button>${f.field_type==='dropdown'?`<button class="btn secondary small" onclick="openCustomOptions('${f.id}')">Items</button>`:''}<button class="btn danger small" onclick="deleteCustomField('${f.id}')">Delete</button></td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">No extra fields configured for this form yet.</div>';
   const moduleLabel = CUSTOM_FIELD_MODULES.find(m=>m.id===activeModule)?.label || activeModule;
   $('#content').innerHTML=`${tabBar}<div class="panel"><div class="panel-head"><div><h3>${esc(moduleLabel)} — Custom Fields</h3><small>Add extra input/dropdown columns to this form without changing code.</small></div><button class="btn" onclick="openCustomField(null,'${activeModule}')">＋ Add Field</button></div>${body}</div>`;
 }
@@ -1160,12 +1170,14 @@ function openCustomField(id, defaultModule){
     {id:'module',label:'Applies To',type:'select',options:CUSTOM_FIELD_MODULES.map(m=>({value:m.id,label:m.label})),value:row?.module||defaultModule||state.customFieldsModule||'entries'},
     {id:'name',label:'Field / Column Name',value:row?.field_name||''},
     {id:'type',label:'Field Type',type:'select',options:['text','number','amount','date','dropdown','checkbox'],value:row?.field_type||'text'},
+    {id:'tally',label:'Affects Daily Entry Tally',type:'select',options:[{value:'none',label:'None — just extra info'},{value:'income',label:'Income — adds to Total Income'},{value:'expense',label:'Expense — adds to Total Expenses'}],value:row?.tally_type||'none'},
     {id:'required',label:'Required',type:'select',options:['No','Yes'],value:row?.is_required?'Yes':'No'},
     {id:'reportable',label:'Reportable in Reports',type:'select',options:['No','Yes'],value:row?.is_reportable?'Yes':'No'},
     {id:'active',label:'Status',type:'select',options:['Active','Inactive'],value:row?.is_active===false?'Inactive':'Active'},
-    {id:'order',label:'Display Order',type:'number',value:row?.display_order||0}
+    {id:'order',label:'Display Order',type:'number',value:row?.display_order||0},
+    {type:'html',html:'<small style="color:var(--muted);font-size:11px">Tally only applies to fields on the <b>Daily Entry</b> form, and only makes sense for Number/Amount fields — pick a numeric value there so it adds up correctly.</small>'}
   ]),async()=>{
-    const p={module:v('module'),field_name:v('name').trim(),field_type:v('type'),is_required:v('required')==='Yes',is_reportable:v('reportable')==='Yes',is_active:v('active')==='Active',display_order:+v('order')||0};
+    const p={module:v('module'),field_name:v('name').trim(),field_type:v('type'),tally_type:v('tally'),is_required:v('required')==='Yes',is_reportable:v('reportable')==='Yes',is_active:v('active')==='Active',display_order:+v('order')||0};
     if(!p.field_name){toast('Field name is required.',true);return;}
     state.customFieldsModule=p.module;
     if(row) await update('custom_fields',row.id,p); else await insert('custom_fields',p);
