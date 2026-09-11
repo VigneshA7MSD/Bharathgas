@@ -10,7 +10,269 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css">
+<style>
+/* ---------- Tokens ---------- */
+:root{
+  --ink:#10151c;
+  --ink-2:#1a212b;
+  --ink-3:#242d39;
+  --paper:#f2f4f3;
+  --panel:#ffffff;
+  --line:#e1e6e3;
+  --text:#161b22;
+  --muted:#6b7480;
+  --flame-1:#ff6a2c;
+  --flame-2:#ffb238;
+  --flame-grad:linear-gradient(135deg,var(--flame-1),var(--flame-2));
+  --good:#1c9a6c;
+  --good-bg:#e7f6ef;
+  --danger:#e2483f;
+  --danger-bg:#fdeceb;
+  --shadow:0 1px 2px rgba(16,21,28,.04),0 8px 24px rgba(16,21,28,.05);
+  --radius:12px;
+  --radius-sm:8px;
+  --font-body:'Inter',Arial,sans-serif;
+  --font-head:'Space Grotesk','Inter',Arial,sans-serif;
+}
+body.dark{
+  --paper:#0c0f14;
+  --panel:#151a21;
+  --line:#262e39;
+  --text:#e7ebf0;
+  --muted:#8a94a3;
+  --good-bg:#123227;
+  --danger-bg:#3a1c1c;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:var(--font-body);background:var(--paper);color:var(--text);transition:background .2s,color .2s}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--flame-1);outline-offset:2px}
+.hidden{display:none !important}
+h1,h2,h3{font-family:var(--font-head)}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
+
+/* ---------- Login screen ---------- */
+.login{min-height:100vh;display:grid;grid-template-columns:minmax(0,460px) 1fr}
+.login-brand{background:var(--ink);color:#e7ebf0;padding:48px 44px;display:flex;flex-direction:column}
+.login-brand-top{display:flex;align-items:center;gap:12px}
+.login-brand-top b{display:block;font-family:var(--font-head);font-size:18px;color:#fff}
+.login-brand-top span{display:block;font-size:11px;color:#8a94a3;margin-top:2px}
+.gauge-wrap{margin:auto 0;display:flex;justify-content:center}
+.gauge{width:min(260px,80%);height:auto}
+.gauge-ring{fill:none;stroke:#2a323e;stroke-width:2}
+.gauge-arc{fill:none;stroke:url(#none);stroke:var(--flame-1);stroke-width:6;stroke-linecap:round;opacity:.85}
+.gauge-label{fill:#5b6472;font-family:var(--font-body);font-size:12px;font-weight:600}
+.gauge-needle{transform-origin:100px 100px;transform:rotate(-98deg);animation:needle-sweep 1.4s cubic-bezier(.2,.8,.2,1) forwards}
+.gauge-needle line{stroke:var(--flame-2);stroke-width:3;stroke-linecap:round}
+.gauge-needle circle{fill:var(--flame-2)}
+@keyframes needle-sweep{0%{transform:rotate(-98deg)}60%{transform:rotate(46deg)}100%{transform:rotate(18deg)}}
+.login-tag{font-size:14px;line-height:1.6;color:#aab3c0;max-width:34ch;margin:0 0 6px}
+.login-brand-foot{font-size:11px;color:#5b6472}
+.login-panel{display:flex;align-items:center;justify-content:center;padding:32px}
+.login-card{width:100%;max-width:360px}
+.login-card h1{font-size:26px;margin:0 0 6px}
+.login-sub{font-size:13px;color:var(--muted);margin:0 0 26px}
+.login-error{background:var(--danger-bg);color:var(--danger);font-size:12px;padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:14px}
+.link-btn{display:block;margin:16px auto 0;font-size:12px;color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.link-btn:hover{color:var(--text)}
+.config-warning{margin-top:22px;font-size:11px;color:var(--danger);background:var(--danger-bg);padding:10px 12px;border-radius:var(--radius-sm)}
+.config-warning code{font-family:monospace}
+@media(max-width:840px){
+  .login{grid-template-columns:1fr}
+  .login-brand{padding:32px 26px}
+  .gauge-wrap{margin:28px 0}
+}
+
+/* ---------- App shell ---------- */
+.app{display:flex;min-height:100vh}
+.sidebar{width:250px;background:var(--ink);color:#aeb8c8;padding:22px 14px;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0}
+.brand{display:flex;gap:12px;align-items:center;padding:6px 10px 28px;color:#fff}
+.logo{width:40px;height:40px;border-radius:var(--radius-sm);background:var(--flame-grad);display:grid;place-items:center;font-family:var(--font-head);font-weight:700;font-size:19px;color:#1a0f08;flex:none}
+.brand b{display:block;font-family:var(--font-head);font-size:17px}
+.brand span{font-size:10px;color:#8a94a3;display:block;margin-top:3px}
+nav{display:grid;gap:4px}
+nav button{background:transparent;color:#aeb8c8;text-align:left;padding:11px 13px;border-radius:var(--radius-sm);display:flex;gap:12px;align-items:center;font-size:13px;transition:background .15s,color .15s}
+nav button:hover{background:var(--ink-3);color:#fff}
+nav button.active{background:var(--ink-3);color:#fff;box-shadow:inset 3px 0 0 var(--flame-1)}
+.side-foot{margin-top:auto;padding:14px 10px 4px;color:#5b6472;font-size:11px;line-height:1.6;border-top:1px solid var(--ink-3)}
+.side-user{color:#cbd5e1;font-size:12px;font-weight:600;margin-top:14px;word-break:break-all}
+.logout-btn{display:block;width:100%;text-align:left;color:#8a94a3;font-size:12px;padding:9px 0 4px}
+.logout-btn:hover{color:#fff}
+
+main{margin-left:250px;width:calc(100% - 250px);padding:0 30px 40px}
+header{min-height:92px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);margin-bottom:24px;flex-wrap:wrap;gap:10px;padding:18px 0}
+.crumb{font-size:11px;color:var(--muted);margin-bottom:6px}
+.crumb strong{color:var(--text)}
+h1{font-size:22px;margin:0;font-weight:600}
+.header-actions{display:flex;gap:10px;align-items:center}
+.header-actions input{background:var(--panel);border:1px solid var(--line);padding:9px 11px;border-radius:var(--radius-sm)}
+.icon-btn,.avatar{width:38px;height:38px;border-radius:var(--radius-sm);background:var(--panel);border:1px solid var(--line);flex:none}
+.avatar{background:var(--good-bg);border:0;color:var(--good);font-weight:700;font-size:11px}
+
+/* ---------- Cards / panels ---------- */
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.metric{padding:16px}
+.metric .top{display:flex;justify-content:space-between;align-items:flex-start;color:var(--muted);font-size:11px;letter-spacing:.02em}
+.metric .value{font-family:var(--font-head);font-size:23px;font-weight:600;margin:10px 0 4px}
+.metric .sub{font-size:10px;color:var(--good)}
+.metric .ico{width:30px;height:30px;border-radius:8px;background:var(--flame-grad);display:grid;place-items:center;color:#1a0f08;font-size:13px;flex:none}
+.grid2{display:grid;grid-template-columns:1.7fr 1fr;gap:16px}
+.panel{padding:18px;margin-bottom:16px}
+.panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;gap:10px;flex-wrap:wrap}
+.panel-head h3{margin:0;font-size:14px;font-weight:600}
+.panel-head small{color:var(--muted);font-size:10px}
+.chart-wrap{height:280px}
+.stock-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stock-box{border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px}
+.stock-box b{font-size:12px;color:var(--muted);font-weight:600}
+.stock-box strong{font-family:var(--font-head);font-size:21px;display:block;margin-top:8px}
+.stock-box span{font-size:10px;color:var(--muted)}
+
+/* ---------- Tables ---------- */
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:11px 9px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{color:var(--muted);font-weight:600;background:var(--paper);font-size:10.5px;letter-spacing:.02em}
+tbody tr:hover{background:var(--paper)}
+.badge{padding:4px 8px;border-radius:20px;background:var(--good-bg);color:var(--good);font-size:10px;font-weight:600}
+.badge.red{background:var(--danger-bg);color:var(--danger)}
+.empty{padding:45px;text-align:center;color:var(--muted);font-size:13px}
+
+/* ---------- Forms / buttons ---------- */
+.toolbar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px}
+.toolbar input,.toolbar select,.form-grid input,.form-grid select,.form-grid textarea,.login input{
+  border:1px solid var(--line);background:var(--panel);border-radius:var(--radius-sm);padding:10px 12px;width:100%
+}
+.toolbar input{width:220px}
+.btn{background:var(--flame-grad);color:#1a0f08;padding:10px 16px;border-radius:var(--radius-sm);font-weight:600;font-size:12.5px;transition:filter .15s}
+.btn:hover{filter:brightness(1.05)}
+.btn:disabled{opacity:.6;cursor:default}
+.btn.secondary{background:var(--paper);color:var(--text);border:1px solid var(--line)}
+.btn.danger{background:var(--danger-bg);color:var(--danger)}
+.btn.small{padding:6px 9px;font-size:10px}
+.btn.full{width:100%}
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.form-group label{display:block;font-size:10.5px;color:var(--muted);margin-bottom:6px;font-weight:600}
+.form-group.full{grid-column:1/-1}
+.readonly-field{background:var(--paper);color:var(--muted);cursor:not-allowed}
+.tab-bar{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab-btn{padding:9px 16px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--panel);color:var(--muted);font-weight:600;font-size:12.5px;cursor:pointer}
+.tab-btn.active{background:var(--flame-grad);color:#1a0f08;border-color:transparent}
+.role-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:3px 9px;border-radius:999px;margin:4px 0 10px}
+.role-badge.admin{background:#2e7d32;color:#fff}
+.role-badge.employee{background:var(--paper);color:var(--muted);border:1px solid var(--line)}
+.row-actions{display:flex;gap:6px;white-space:nowrap}
+.form-subhead{grid-column:1/-1;margin:8px 0 -4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.tally-box{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 16px}
+.tally-box h4{margin:0 0 8px;font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.tally-row{display:flex;justify-content:space-between;padding:4px 0;font-size:13px}
+.tally-row.total{border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-weight:700}
+.tally-ok{color:#2e7d32}
+.tally-bad{color:#c62828}
+.items-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.item-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px}
+.item-row span:first-child{font-weight:600;flex:1}
+.item-add-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.item-add-row select{flex:1;min-width:160px}
+.item-add-row input{width:80px}
+.empty-small{font-size:12.5px;color:var(--muted);padding:8px 0}
+
+/* ---------- Modal ---------- */
+.modal{position:fixed;inset:0;background:rgba(10,15,20,.5);display:grid;place-items:center;padding:20px;z-index:10}
+.modal-card{background:var(--panel);width:min(680px,100%);max-height:90vh;overflow:auto;border-radius:16px;padding:22px}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.modal-head h3{margin:0}
+.modal-head button{font-size:24px;color:var(--muted)}
+.modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
+
+/* ---------- Misc ---------- */
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.quick button{padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-sm);text-align:left}
+.quick b{display:block;font-size:11.5px}
+.quick span{font-size:10px;color:var(--muted)}
+.summary-list{display:grid;gap:10px}
+.summary-row{display:flex;justify-content:space-between;font-size:11px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+#toast{position:fixed;right:20px;bottom:20px;z-index:20}
+.toast{background:var(--ink);color:#fff;padding:12px 16px;border-radius:var(--radius-sm);font-size:12px;box-shadow:var(--shadow)}
+
+/* ---------- Responsive ---------- */
+@media(max-width:1000px){
+  .sidebar{width:70px}
+  .brand div:not(.logo),nav span,.side-foot small,.side-user,.logout-btn{display:none}
+  main{margin-left:70px;width:calc(100% - 70px);padding:0 18px}
+  .cards{grid-template-columns:repeat(2,1fr)}
+  .grid2{grid-template-columns:1fr}
+  .stock-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:600px){
+  header{padding:16px 0}
+  .header-actions input{width:120px}
+  .cards,.quick{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr}
+  main{padding:0 12px}
+  .metric .value{font-size:19px}
+  .login{grid-template-columns:1fr}
+}
+
+
+/* ---------- Notebook-style Daily Entry ---------- */
+.daily-entry{display:block}
+.daily-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.entry-section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.entry-section.full{grid-column:1/-1}
+.entry-section-title{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.entry-section-title>div{display:flex;align-items:center;gap:10px}
+.entry-section-title span{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:var(--flame-grad);color:#1a0f08;font-size:10px;font-weight:800}
+.entry-section-title h3{margin:0;font-size:14px}
+.entry-section-title small{color:var(--muted);font-size:10.5px;text-align:right;max-width:250px}
+.entry-line-head,.daily-item{display:grid;grid-template-columns:1.5fr .8fr .6fr .9fr auto;align-items:center;gap:10px}
+.entry-line-head{padding:0 10px 7px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase}
+.daily-items{display:grid;gap:7px}
+.daily-item{padding:9px 10px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--paper);font-size:12px}
+.daily-item span:first-child{font-weight:700}
+.daily-item b{text-align:right}
+.daily-add-row{display:grid;grid-template-columns:1.1fr 80px 110px auto;gap:8px;margin-top:10px}
+.daily-add-row select,.daily-add-row input{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius-sm);padding:10px 12px;width:100%}
+.rate-override{border-color:var(--flame-2)!important}
+.price-quick-input{width:110px;border:1px solid var(--line);background:var(--panel);border-radius:var(--radius-sm);padding:6px 8px}
+.compact-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.compact-fields label,.expense-grid label,.den-grid label{display:grid;gap:5px;color:var(--muted);font-size:10.5px;font-weight:600}
+.compact-fields input,.compact-fields select,.expense-grid input,.den-grid input{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius-sm);padding:9px 10px;width:100%;color:var(--text)}
+.expense-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.den-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px}
+.cash-total{margin-top:13px;border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;align-items:center}
+.cash-total span{color:var(--muted);font-size:11px;font-weight:700}
+.cash-total strong{font-family:var(--font-head);font-size:20px}
+.tally-section{background:linear-gradient(135deg,var(--panel),var(--paper))}
+.tally-large{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.tally-large>div{border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px;background:var(--panel)}
+.tally-large span{display:block;color:var(--muted);font-size:10.5px;font-weight:600}
+.tally-large b{display:block;font-family:var(--font-head);font-size:19px;margin-top:7px}
+.tally-large .balance{grid-column:1/-1;background:var(--good-bg);border-color:transparent}
+.tally-large .balance b{color:var(--good);font-size:23px}
+.tally-negative{color:var(--danger)!important}
+.daily-save-bar{margin:16px 0;display:flex;align-items:center;justify-content:space-between;gap:15px;background:var(--ink);color:#fff;border-radius:var(--radius);padding:15px 18px;box-shadow:var(--shadow)}
+.daily-save-bar b{display:block;font-size:13px}.daily-save-bar span{display:block;color:#aeb8c8;font-size:10.5px;margin-top:3px}
+.daily-save-bar .btn{white-space:nowrap}
+.daily-history{margin-top:0}
+@media(max-width:800px){.daily-grid{grid-template-columns:1fr}.entry-section.full{grid-column:auto}.den-grid{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:600px){.entry-line-head{display:none}.daily-item{grid-template-columns:1fr 1fr 1fr auto}.daily-item b{grid-column:3}.daily-item .btn{grid-column:4;grid-row:1 / span 2}.daily-add-row{grid-template-columns:1fr 1fr}.daily-add-row .btn{grid-column:1/-1}.compact-fields,.expense-grid{grid-template-columns:1fr}.den-grid{grid-template-columns:repeat(2,1fr)}.tally-large{grid-template-columns:1fr}.tally-large .balance{grid-column:auto}.daily-save-bar{align-items:flex-start;flex-direction:column}}
+
+
+/* ---------- Separate Income / Expense Reports ---------- */
+.report-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.mini-report{display:grid;gap:0}.mini-report>div{display:grid;grid-template-columns:1fr auto;gap:12px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:12px}.mini-report>div:first-child{font-size:10px;color:var(--muted);text-transform:uppercase}.mini-report span{color:var(--text)}
+.report-filters .form-grid{margin-bottom:2px}
+@media(max-width:800px){.report-grid{grid-template-columns:1fr}}
+.admin-only.hidden{display:none!important}
+.custom-check{display:flex!important;align-items:center;justify-content:space-between;gap:10px}
+.custom-check input{width:auto!important}
+
+</style>
 </head>
 <body>
 <div id="toast"></div>
@@ -52,7 +314,7 @@
         <button type="submit" class="btn full" id="loginSubmit">Sign in</button>
       </form>
       <button type="button" class="link-btn" id="forgotBtn">Forgot password?</button>
-      <p id="configWarning" class="config-warning hidden">Supabase is not configured yet. Edit <code>config.js</code> with your project URL and key.</p>
+      <p id="configWarning" class="config-warning hidden">Supabase is not configured yet. Edit the SUPABASE_URL and SUPABASE_KEY near the top of this file's script.</p>
     </div>
   </div>
 </div>
@@ -70,6 +332,8 @@
       <button data-page="vehicles">▱ <span>Vehicles</span></button>
       <button data-page="income-reports">↗ <span>Income Report</span></button>
       <button data-page="expense-reports">↘ <span>Expense Report</span></button>
+      <button data-page="entry-fields" class="admin-only">⚙ <span>Custom Fields</span></button>
+      <button data-page="list-manager" class="admin-only">☰ <span>Manage Lists</span></button>
     </nav>
     <div class="side-foot">
       <div id="sideUser" class="side-user"></div>
@@ -88,7 +352,1023 @@
 </div>
 
 <div id="modal" class="modal hidden"><div class="modal-card"><div class="modal-head"><h3 id="modalTitle">Add</h3><button onclick="closeModal()">×</button></div><div id="modalBody"></div></div></div>
-<script src="config.js"></script>
-<script src="app.js"></script>
+<script>
+// Enter your Supabase Project URL and Publishable/Anon key here.
+// Do NOT use the service_role key in frontend code.
+window.SUPABASE_URL = 'https://docakrkrmyqvlzkrneod.supabase.co';
+window.SUPABASE_KEY = 'sb_publishable_q_hzdJrdU-Pio6ypmodD4g_n6DTsR47';
+
+</script>
+<script>
+// GasFlow - Vanilla JS + Supabase
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+
+const staffNames = ['GOVINDAN','RAMESH','PK RAJA','MUTHU KANNAN','RAJKUMAR','OFFICE STAFF','GOPI','RAJA AND KANNAN','PRABHU','SURESH','KANNAN','AJITH','NIVETHA','SATHISH','S15','S16','OFFICE'];
+// Fallback values only — once the "Manage Lists" screen has entries for a given list_key,
+// those admin-edited values are used instead. See listValues().
+const cylinderTypesDefault = ['14.2 KG','NC 14.2 KG','ADC 14.2 KG','19 KG','5 KG Red','5 KG Blue','47.5 KG'];
+const expenseCategoryDefault = ['DIESEL / PETROL','ONLINE PAYMENT','SALARY + INCENTIVES + OTHERS','MAINTENANCE','OTHER'];
+const paymentMethodDefault = ['Cash','GPay','Bank','Other'];
+const customerTypeDefault = ['Commercial','Domestic','Institution','Other'];
+const staffRoleDefault = ['Delivery Boy','Office Staff','Driver','Helper','Other'];
+// Admin-configurable dropdown/text lists this app knows how to render everywhere they're used.
+const LOOKUP_LISTS = [
+  { key:'cylinder_type', label:'Cylinder Types', fallback:cylinderTypesDefault },
+  { key:'expense_category', label:'Expense Categories', fallback:expenseCategoryDefault },
+  { key:'payment_method', label:'Payment Methods', fallback:paymentMethodDefault },
+  { key:'customer_type', label:'Customer Types', fallback:customerTypeDefault },
+  { key:'staff_role', label:'Staff Roles', fallback:staffRoleDefault }
+];
+// Forms that can host Admin-added custom fields (see Custom Fields admin page).
+const CUSTOM_FIELD_MODULES = [
+  { id:'entries', label:'Daily Entry' },
+  { id:'customers', label:'Customers' },
+  { id:'staff', label:'Staff' },
+  { id:'vehicles', label:'Vehicles' },
+  { id:'expenses', label:'Expenses' }
+];
+const state = {
+  page: 'dashboard',
+  rows: { entries: [], customers: [], staff: [], stock: [], vehicles: [], expenses: [], attendance: [], cash_counts: [], rates: [], custom_fields: [], custom_field_options: [], custom_field_values: [], lookup_lists: [] },
+  charts: {},
+  loading: false,
+  role: 'employee',
+  reportFilters: { from: '', to: '', person: '', type: '', payment: '', paymentMethod: '', category: '', customer: '' },
+  customFieldsModule: 'entries',
+  listManagerKey: 'cylinder_type'
+};
+let sb = null;
+let entryItemsDraft = [];
+
+function listValues(key, fallback) {
+  const items = state.rows.lookup_lists.filter(x => x.list_key === key && x.is_active !== false).sort((a,b)=>(a.display_order||0)-(b.display_order||0)).map(x=>x.value);
+  return items.length ? items : (fallback || []);
+}
+function cylinderTypes() { return listValues('cylinder_type', cylinderTypesDefault); }
+function today() { return new Date().toISOString().slice(0, 10); }
+function money(n) { return '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
+function esc(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+
+function init() {
+  const configured = window.supabase && window.SUPABASE_URL && window.SUPABASE_KEY && !String(window.SUPABASE_URL).includes('YOUR_SUPABASE');
+  try {
+    if (configured) sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+  } catch (e) {
+    console.error('Supabase initialization failed:', e);
+    toast('Supabase configuration is invalid.', true);
+  }
+
+  if ($('#globalDate')) $('#globalDate').value = today();
+  $$('#nav button').forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
+  $('#loginForm').addEventListener('submit', handleLogin);
+  $('#logoutBtn').addEventListener('click', handleLogout);
+  $('#forgotBtn').addEventListener('click', handleForgotPassword);
+
+  if (!configured) {
+    $('#configWarning').classList.remove('hidden');
+    $('#loginSubmit').disabled = true;
+    return;
+  }
+
+  sb.auth.onAuthStateChange((_event, session) => {
+    if (session) enterApp(session); else showLogin();
+  });
+  sb.auth.getSession().then(({ data }) => {
+    if (data.session) enterApp(data.session); else showLogin();
+  });
+}
+
+function showLogin() {
+  $('#appScreen').classList.add('hidden');
+  $('#loginScreen').classList.remove('hidden');
+}
+
+async function enterApp(session) {
+  $('#loginScreen').classList.add('hidden');
+  $('#appScreen').classList.remove('hidden');
+  const email = session.user?.email || '';
+  $('#sideUser').textContent = email;
+  $('#avatarBtn').textContent = email.slice(0, 2).toUpperCase() || 'VA';
+  state.role = await fetchRole(session.user.id);
+  updateRoleUI();
+  showPage('dashboard');
+}
+
+async function fetchRole(userId) {
+  if (!sb || !userId) return 'employee';
+  try {
+    const { data, error } = await sb.from('profiles').select('role').eq('id', userId).maybeSingle();
+    if (error || !data) return 'employee';
+    return data.role === 'admin' ? 'admin' : 'employee';
+  } catch (e) { return 'employee'; }
+}
+
+function updateRoleUI() {
+  $$('.admin-only').forEach(el => el.classList.toggle('hidden', state.role !== 'admin'));
+  const badge = $('#roleBadge');
+  if (badge) {
+    badge.textContent = state.role === 'admin' ? 'Admin' : 'Employee';
+    badge.className = 'role-badge ' + (state.role === 'admin' ? 'admin' : 'employee');
+  }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = $('#loginEmail').value.trim();
+  const password = $('#loginPassword').value;
+  const btn = $('#loginSubmit');
+  const errBox = $('#loginError');
+  errBox.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false;
+  btn.textContent = 'Sign in';
+  if (error) {
+    errBox.textContent = error.message || 'Could not sign in. Check your credentials.';
+    errBox.classList.remove('hidden');
+  }
+}
+
+async function handleLogout() {
+  if (!sb) return;
+  await sb.auth.signOut();
+  showLogin();
+}
+
+async function handleForgotPassword() {
+  const email = ($('#loginEmail').value || '').trim();
+  if (!email) { toast('Enter your email above first', true); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email);
+  if (error) toast(error.message, true);
+  else toast('Password reset email sent');
+}
+
+async function load(table) {
+  if (!sb) return [];
+  const orderField = table === 'rates' ? 'updated_at' : 'created_at';
+  const { data, error } = await sb.from(table).select('*').order(orderField, { ascending: false }).limit(500);
+  if (error) {
+    console.error(`Load ${table}:`, error);
+    toast(`${table}: ${error.message}`, true);
+    return [];
+  }
+  return data || [];
+}
+
+async function refresh() {
+  if (!sb || state.loading) return;
+  state.loading = true;
+  try {
+    for (const t of ['entries','customers','staff','stock','vehicles','expenses','attendance','cash_counts','rates','custom_fields','custom_field_options','custom_field_values','lookup_lists']) state.rows[t] = await load(t);
+    render();
+  } finally {
+    state.loading = false;
+  }
+}
+
+function showPage(page) {
+  state.page = page;
+  $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.page === page));
+  const names = { dashboard:'Dashboard', entries:'Daily Entry', customers:'Customers', staff:'Staff', stock:'Stock', vehicles:'Vehicles', 'income-reports':'Income Report', 'expense-reports':'Expense Report', 'entry-fields':'Custom Fields', 'list-manager':'Manage Lists' };
+  $('#pageTitle').textContent = names[page] || 'Dashboard';
+  $('#headline').textContent = page === 'dashboard' ? 'Good afternoon 👋' : (names[page] || 'Dashboard');
+  render();
+  if (sb) refresh();
+}
+
+function render() {
+  const p = state.page;
+  if (p === 'dashboard') dashboard();
+  else if (p === 'entries') entries();
+  else if (p === 'customers') customers();
+  else if (p === 'staff') staff();
+  else if (p === 'stock') stock();
+  else if (p === 'vehicles') vehicles();
+  else if (p === 'income-reports') incomeReport();
+  else if (p === 'expense-reports') expenseReport();
+  else if (p === 'entry-fields') entryFieldsPage();
+  else if (p === 'list-manager') listManagerPage();
+}
+
+function dashboard() {
+  const es = state.rows.entries, ex = state.rows.expenses;
+  const sales = es.reduce((a,x) => a + Number(x.amount || 0), 0);
+  const paid = es.filter(x => x.payment_status === 'Paid').reduce((a,x) => a + Number(x.amount || 0), 0);
+  const expense = ex.reduce((a,x) => a + Number(x.amount || 0), 0);
+  const qty = es.reduce((a,x) => a + Number(x.quantity || 0), 0);
+  $('#content').innerHTML = `
+    <div class="cards">
+      <div class="card metric"><div class="top">TOTAL SALES <span class="ico">₹</span></div><div class="value">${money(sales)}</div><div class="sub">${sb ? 'Live database total' : 'Connect Supabase for live data'}</div></div>
+      <div class="card metric"><div class="top">COLLECTION <span class="ico">✓</span></div><div class="value">${money(paid)}</div><div class="sub">Paid transactions</div></div>
+      <div class="card metric"><div class="top">EXPENSES <span class="ico">−</span></div><div class="value">${money(expense)}</div><div class="sub">All recorded expenses</div></div>
+      <div class="card metric"><div class="top">UNITS SOLD <span class="ico">▣</span></div><div class="value">${qty}</div><div class="sub">All cylinder types</div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><div class="panel-head"><h3>Sales overview</h3><small>Recent transactions</small></div><div class="chart-wrap"><canvas id="salesChart"></canvas></div></div>
+      <div class="panel"><div class="panel-head"><h3>Quick actions</h3></div>
+        <div class="quick">
+          <button onclick="openEntry()"><b>＋ Daily Entry</b><span>Record a delivery</span></button>
+          <button onclick="openCustomer()"><b>＋ Customer</b><span>Add customer</span></button>
+          <button onclick="openExpense()"><b>＋ Expense</b><span>Record expense</span></button>
+          <button onclick="showPage('income-reports')"><b>↗ Income Report</b><span>Filter & export income</span></button><button onclick="showPage('expense-reports')"><b>↘ Expense Report</b><span>Filter & export expenses</span></button>
+        </div>
+        <div class="panel-head" style="margin-top:22px"><h3>Stock snapshot</h3></div>
+        <div class="stock-grid">
+          <div class="stock-box"><b>14.2 KG</b><strong>${stockSum('14.2 KG','full')}</strong><span>Full</span></div>
+          <div class="stock-box"><b>14.2 KG</b><strong>${stockSum('14.2 KG','empty')}</strong><span>Empty</span></div>
+          <div class="stock-box"><b>19 KG</b><strong>${stockSum('19 KG','full')}</strong><span>Full</span></div>
+          <div class="stock-box"><b>19 KG</b><strong>${stockSum('19 KG','empty')}</strong><span>Empty</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-head"><h3>Latest transactions</h3><button class="btn secondary" onclick="showPage('entries')">View all</button></div>
+      ${table(['Date','Customer','Type','Qty','Amount','Payment'], es.slice(0,8), r => [esc(r.entry_date),esc(r.customer_name),esc(r.cylinder_type),esc(r.quantity),money(r.amount),`<span class="badge ${r.payment_status === 'Paid' ? '' : 'red'}">${esc(r.payment_status || 'Pending')}</span>`])}
+    </div>`;
+  drawSales(es);
+}
+
+function drawSales(es) {
+  if (!window.Chart) return;
+  const c = $('#salesChart');
+  if (!c) return;
+  if (state.charts.sales) state.charts.sales.destroy();
+  const map = {};
+  es.forEach(r => { map[r.entry_date] = (map[r.entry_date] || 0) + Number(r.amount || 0); });
+  const labels = Object.keys(map).sort().slice(-14);
+  state.charts.sales = new Chart(c, {
+    type:'line',
+    data:{ labels, datasets:[{ label:'Sales', data:labels.map(x=>map[x]), tension:.35, fill:true }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true},x:{grid:{display:false}}} }
+  });
+}
+
+function stockSum(type, kind) {
+  return state.rows.stock.filter(x => x.cylinder_type === type).reduce((a,x) => a + Number(x[kind] || 0), 0);
+}
+
+function table(headers, rows, mapper, entity) {
+  if (!rows.length) return '<div class="empty">No records yet. Add your first record.</div>';
+  const canDelete = state.role === 'admin';
+  return `<div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${mapper(r).map(v=>`<td>${v ?? ''}</td>`).join('')}<td class="row-actions">${entity?`<button class="btn secondary small" onclick="editRow('${entity}','${r.id}')">Edit</button>`:''}${canDelete?`<button class="btn danger small" onclick="deleteRow('${r.id}')">Delete</button>`:''}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+const editors = { entries: openEntry, customers: openCustomer, staff: openStaff, stock: openStock, vehicles: openVehicle, expenses: openExpense, attendance: openAttendance, cash_counts: openCashCount, rates: openRate };
+function editRow(entity, id) {
+  const row = (state.rows[entity] || []).find(r => r.id === id);
+  if (!row) { toast('Record not found', true); return; }
+  const fn = editors[entity];
+  if (fn) fn(row); else toast('Editing is not available for this record type.', true);
+}
+
+function pageTable(title, button, body) {
+  $('#content').innerHTML = `<div class="panel"><div class="panel-head"><h3>${title}</h3>${button || ''}</div>${body}</div>`;
+}
+function deliveryBoys() {
+  const db = state.rows.staff.filter(x => x.active !== false && ['Delivery Boy','Delivery Team'].includes(x.role)).map(x=>x.name).filter(Boolean);
+  return [...new Set(db.length ? db : staffNames)];
+}
+function deliverySelect(id='staff', label='Delivery person', value) { const opts = deliveryBoys(); if (value && !opts.includes(value)) opts.unshift(value); return {id,label,type:'select',options:opts,value}; }
+function actionsHeader(headers){ return [...headers,'Actions']; }
+
+function entries() {
+  const tab = state.entriesTab || 'sales';
+  const tabs = [
+    { id:'sales', label:'Daily Entry' },
+    { id:'attendance', label:'Attendance' },
+    { id:'prices', label:'Cylinder Prices' }
+  ];
+  const tabBar = `<div class="tab-bar">${tabs.map(t=>`<button class="tab-btn ${tab===t.id?'active':''}" onclick="switchEntriesTab('${t.id}')">${esc(t.label)}</button>`).join('')}</div>`;
+
+  let body = '';
+  if (tab === 'attendance') {
+    body = `<div class="panel"><div class="panel-head"><h3>Delivery boy attendance</h3><button class="btn" onclick="openAttendance()">＋ Mark Attendance</button></div>${table(actionsHeader(['Date','Delivery Person','Status','Note']), state.rows.attendance, r => [esc(r.attendance_date),esc(r.delivery_person),esc(r.status),esc(r.note)], 'attendance')}</div>`;
+  } else if (tab === 'prices') {
+    body = `<div class="panel"><div class="panel-head"><h3>Cylinder Prices</h3><button class="btn" onclick="openRate()">＋ Add Cylinder Price</button></div>${cylinderPricesTableHtml()}</div>`;
+  } else {
+    body = dailyEntryForm();
+  }
+  $('#content').innerHTML = tabBar + body;
+  if (tab === 'sales') initDailyEntryForm();
+}
+
+function dailyEntryForm() {
+  const types = cylinderTypes();
+  const people = deliveryBoys();
+  const vehiclesList = state.rows.vehicles.map(v=>v.vehicle_no).filter(Boolean);
+  const vehicleOpts = [...new Set(vehiclesList)];
+  const expenseFields = [
+    ['bank_deposit','Bank Deposit'],
+    ['loadman_advance','Load Man Advance'],
+    ['salary','Salary'],
+    ['incentives','Incentives'],
+    ['stationery','Stationery'],
+    ['farm_expenses','Farm Expenses'],
+    ['hotel_expenses','Hotel / Food'],
+    ['kanika_expenses','Kanika Expenses'],
+    ['tea','Tea'],
+    ['other_expenses','Other']
+  ];
+  const den = ['2000','500','200','100','50','20','10','5','2','1'];
+  return `<form id="dailyEntryForm" class="daily-entry" onsubmit="return saveDailyEntry(event)">
+    <div class="daily-grid">
+      <section class="entry-section full">
+        <div class="entry-section-title"><div><span>01</span><h3>Delivery & Cylinder Entry</h3></div><small>Enter the preferred delivery date and delivery person.</small></div>
+        <div class="form-grid">
+          <div class="form-group"><label>Receipt / Delivery date</label><input id="de_date" type="date" value="${esc($('#globalDate').value || today())}" required></div>
+          <div class="form-group"><label>Delivery boy</label><select id="de_staff" required>${people.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select></div>
+        </div>
+        <div class="entry-line-head"><span>Selected cylinders</span><span>Rate</span><span>Qty</span><span>Total</span><span></span></div>
+        <div id="dailyItems" class="daily-items"></div>
+        <div class="daily-add-row">
+          <select id="de_type" onchange="syncDailyRate()">${types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
+          <input id="de_qty" type="number" min="1" step="1" value="1">
+          <input id="de_rate" type="number" min="0" step="0.01" value="${currentRate(types[0])}" title="Auto-filled from Cylinder Prices — edit here to override for this line only">
+          <button type="button" class="btn secondary" onclick="addDailyCylinder()">＋ Add Product</button>
+        </div>
+        <small class="empty-small">Rate is auto-filled from Cylinder Prices — edit it before adding if this delivery needs a different price.</small>
+      </section>
+
+      <section class="entry-section">
+        <div class="entry-section-title"><div><span>02</span><h3>Payment Details</h3></div><small>Match the notebook payment split.</small></div>
+        <div class="compact-fields">
+          <label>Prepaid <input id="de_prepaid" type="number" min="0" step="0.01" value="0"></label>
+          <label>No. of Online Cyl <input id="de_online_cyl" type="number" min="0" step="1" value="0"></label>
+          <label>No. of GPay / Pay Cyl <input id="de_gpay_cyl" type="number" min="0" step="1" value="0"></label>
+          <label>1 KG GPay Amt <input id="de_gpay_1kg" type="number" min="0" step="0.01" value="0"></label>
+          <label>5 KG GPay Amt <input id="de_gpay_5kg" type="number" min="0" step="0.01" value="0"></label>
+          <label>Other GPay <input id="de_other_gpay" type="number" min="0" step="0.01" value="0"></label>
+          <label>Office Cash <input id="de_office_cash" type="number" min="0" step="0.01" value="0"></label>
+          <label>Payment Status <select id="de_payment"><option>Paid</option><option>Partial</option><option>Pending</option></select></label>
+        </div>
+      </section>
+
+      <section class="entry-section">
+        <div class="entry-section-title"><div><span>03</span><h3>Daily Expenses</h3></div><small>Enter only the expenses used today.</small></div>
+        <div class="expense-grid">${expenseFields.map(([id,label])=>`<label>${esc(label)}<input id="de_${id}" type="number" min="0" step="0.01" value="0"></label>`).join('')}</div>
+      </section>
+
+      <section class="entry-section">
+        <div class="entry-section-title"><div><span>04</span><h3>Vehicle Details</h3></div><small>KM difference is calculated automatically.</small></div>
+        <div class="compact-fields vehicle-fields">
+          <label>Vehicle <select id="de_vehicle"><option value="">Select vehicle</option>${vehicleOpts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}</select></label>
+          <label>Starting KM <input id="de_start_km" type="number" min="0" step="0.1" value="0"></label>
+          <label>Ending KM <input id="de_end_km" type="number" min="0" step="0.1" value="0"></label>
+          <label>Difference <input id="de_diff_km" type="number" value="0" readonly></label>
+          <label>Diesel Filled Qty <input id="de_diesel" type="number" min="0" step="0.01" value="0"></label>
+          <label>Diesel Amount <input id="de_diesel_amt" type="number" min="0" step="0.01" value="0"></label>
+          <label>Service Done <input id="de_service" type="text" placeholder="Service details"></label>
+          <label>Maintenance Amt <input id="de_maintenance" type="number" min="0" step="0.01" value="0"></label>
+        </div>
+      </section>
+
+      <section class="entry-section">
+        <div class="entry-section-title"><div><span>05</span><h3>Cash Denomination</h3></div><small>Count notes and coins physically in hand.</small></div>
+        <div class="den-grid">${den.map(d=>`<label>₹${d}<input id="de_d${d}" type="number" min="0" step="1" value="0"></label>`).join('')}</div>
+        <div class="cash-total"><span>Total Cash</span><strong id="de_total_cash">₹0</strong></div>
+      </section>
+
+      ${(() => { const html = customFieldsBlockHtml('entries','de_custom_',null,{bare:true}); return html ? `<section class="entry-section"><div class="entry-section-title"><div><span>07</span><h3>Additional Entry Fields</h3></div><small>Fields configured by Admin.</small></div>${html}</section>` : ''; })()}
+
+      <section class="entry-section tally-section">
+        <div class="entry-section-title"><div><span>06</span><h3>Tally</h3></div><small>Income − Expenses = Balance</small></div>
+        <div class="tally-large">
+          <div><span>Total Income</span><b id="de_income">₹0</b></div>
+          <div><span>Total Expenses</span><b id="de_expenses">₹0</b></div>
+          <div class="balance"><span>Balance</span><b id="de_balance">₹0</b></div>
+          <div><span>Total Cash</span><b id="de_tally_cash">₹0</b></div>
+        </div>
+      </section>
+    </div>
+    <div class="daily-save-bar"><div><b>Daily Entry</b><span>Review the tally before saving to cloud.</span></div><button type="submit" class="btn">Save Daily Entry</button></div>
+  </form>
+  <div class="panel daily-history"><div class="panel-head"><h3>Today's Sales Records</h3><small>${esc($('#globalDate').value || today())}</small></div>${table(actionsHeader(['Date','Customer','Delivery Person','Type','Qty','Amount','Payment']), state.rows.entries.filter(r=>r.entry_date === ($('#globalDate').value || today())).slice(0,20), r => [esc(r.entry_date),esc(r.customer_name),esc(r.staff_name),esc(r.cylinder_type),esc(r.quantity),money(r.amount),`<span class="badge ${r.payment_status==='Paid'?'':'red'}">${esc(r.payment_status||'Pending')}</span>`], 'entries')}</div>`;
+}
+
+let dailyCylinderDraft = [];
+function initDailyEntryForm() {
+  dailyCylinderDraft = [];
+  renderDailyCylinders();
+  ['de_prepaid','de_online_cyl','de_gpay_cyl','de_gpay_1kg','de_gpay_5kg','de_other_gpay','de_office_cash','de_start_km','de_end_km', ...['2000','500','200','100','50','20','10','5','2','1'].map(x=>'de_d'+x), ...['bank_deposit','loadman_advance','salary','incentives','stationery','farm_expenses','hotel_expenses','kanika_expenses','tea','other_expenses','de_diesel_amt','de_maintenance']].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('input', recalcDailyEntry); });
+  const type=$('#de_type'), qty=$('#de_qty');
+  if(type) type.addEventListener('change', recalcDailyEntry);
+  recalcDailyEntry();
+}
+// Generic custom-field rendering + collection, usable for any module (entries, customers,
+// staff, vehicles, expenses). idPrefix must be unique per form so ids never collide.
+function customFieldsForModule(module){
+  return state.rows.custom_fields.filter(f=>f.is_active!==false && (f.module||'entries')===module).sort((a,b)=>(a.display_order||0)-(b.display_order||0));
+}
+function customFieldValuesFor(recordId){
+  const map={};
+  if(!recordId) return map;
+  state.rows.custom_field_values.filter(v=>v.record_id===recordId).forEach(v=>{ map[v.field_id]=v.value; });
+  return map;
+}
+function customFieldControlHtml(f, idPrefix, valuesMap){
+  const id=idPrefix+f.id, req=f.is_required?'required':'';
+  const existing = valuesMap ? valuesMap[f.id] : undefined;
+  if(f.field_type==='dropdown'){
+    const opts=state.rows.custom_field_options.filter(o=>o.field_id===f.id&&o.is_active!==false).sort((a,b)=>(a.display_order||0)-(b.display_order||0));
+    return `<label>${esc(f.field_name)}${f.is_required?' *':''}<select id="${esc(id)}" ${req}><option value="">Select ${esc(f.field_name)}</option>${opts.map(o=>`<option value="${esc(o.option_name)}" ${existing===o.option_name?'selected':''}>${esc(o.option_name)}</option>`).join('')}</select></label>`;
+  }
+  if(f.field_type==='checkbox')return `<label class="custom-check">${esc(f.field_name)}<input id="${esc(id)}" type="checkbox" ${existing==='true'?'checked':''}></label>`;
+  const type=f.field_type==='amount'||f.field_type==='number'?'number':f.field_type;
+  return `<label>${esc(f.field_name)}${f.is_required?' *':''}<input id="${esc(id)}" type="${esc(type)}" value="${esc(existing||'')}" ${type==='number'?'step="0.01"':''} ${req}></label>`;
+}
+function customFieldsBlockHtml(module, idPrefix, valuesMap, opts={}){
+  const fields=customFieldsForModule(module);
+  if(!fields.length) return '';
+  const inner=`<div class="compact-fields">${fields.map(f=>customFieldControlHtml(f,idPrefix,valuesMap)).join('')}</div>`;
+  return opts.bare ? inner : `<h4 class="form-subhead">Additional Fields</h4>${inner}`;
+}
+function collectCustomFieldValues(module, idPrefix, recordId){
+  const fields=customFieldsForModule(module);
+  return fields.map(f=>({record_id:recordId,field_id:f.id,value:f.field_type==='checkbox'?($('#'+idPrefix+f.id)?.checked?'true':'false'):($('#'+idPrefix+f.id)?.value||'')})).filter(x=>x.value!=='' || fields.find(f=>f.id===x.field_id)?.is_required);
+}
+// Insert/update a record in `table`, then save any module custom-field values against it.
+async function saveWithCustomFields(table, payload, id, module, idPrefix){
+  if (!sb) { toast('Supabase is not connected.', true); return; }
+  let recordId = id;
+  if (id) {
+    const { error } = await sb.from(table).update(payload).eq('id', id);
+    if (error) { toast(error.message, true); return; }
+  } else {
+    const { data, error } = await sb.from(table).insert(payload).select('id').single();
+    if (error) { toast(error.message, true); return; }
+    recordId = data.id;
+  }
+  const values = collectCustomFieldValues(module, idPrefix, recordId);
+  if (values.length) {
+    const fieldIds = customFieldsForModule(module).map(f=>f.id);
+    await sb.from('custom_field_values').delete().eq('record_id', recordId).in('field_id', fieldIds);
+    const { error: cfErr } = await sb.from('custom_field_values').insert(values);
+    if (cfErr) console.error('Custom field values:', cfErr);
+  }
+  closeModal();
+  toast(id ? 'Updated successfully' : 'Saved successfully');
+  await refresh();
+}
+
+function syncDailyRate() {
+  const type = $('#de_type')?.value, rateEl = $('#de_rate');
+  if (rateEl) rateEl.value = currentRate(type);
+}
+function addDailyCylinder() {
+  const type=$('#de_type')?.value, qty=Number($('#de_qty')?.value||0), rateInput=$('#de_rate');
+  const rate = rateInput && rateInput.value !== '' ? Number(rateInput.value) : currentRate(type);
+  if(!type || qty<=0){toast('Enter a valid cylinder quantity.',true);return;}
+  dailyCylinderDraft.push({type,qty,rate});
+  $('#de_qty').value=1;
+  syncDailyRate();
+  renderDailyCylinders();
+  recalcDailyEntry();
+}
+function removeDailyCylinder(i){dailyCylinderDraft.splice(i,1); renderDailyCylinders(); recalcDailyEntry();}
+function renderDailyCylinders(){
+  const el=$('#dailyItems'); if(!el) return;
+  el.innerHTML=dailyCylinderDraft.length ? dailyCylinderDraft.map((it,i)=>{const rate=it.rate!=null?it.rate:currentRate(it.type), total=rate*it.qty; return `<div class="daily-item"><span>${esc(it.type)}</span><span>${money(rate)}</span><span>${esc(it.qty)}</span><b>${money(total)}</b><button type="button" class="btn danger small" onclick="removeDailyCylinder(${i})">Delete</button></div>`}).join('') : '<div class="empty-small">No cylinder selected. Choose a cylinder type and click Add Product.</div>';
+}
+function dailyIncome(){return dailyCylinderDraft.reduce((a,it)=>a+Number(it.qty||0)*(it.rate!=null?it.rate:currentRate(it.type)),0);}
+function dailyExpenses(){return ['bank_deposit','loadman_advance','salary','incentives','stationery','farm_expenses','hotel_expenses','kanika_expenses','tea','other_expenses'].reduce((a,id)=>a+Number($('#de_'+id)?.value||0),0)+Number($('#de_diesel_amt')?.value||0)+Number($('#de_maintenance')?.value||0);}
+function dailyCash(){return ['2000','500','200','100','50','20','10','5','2','1'].reduce((a,d)=>a+Number($('#de_d'+d)?.value||0)*Number(d),0);}
+function recalcDailyEntry(){
+  const start=Number($('#de_start_km')?.value||0), end=Number($('#de_end_km')?.value||0), diff=Math.max(0,end-start);
+  if($('#de_diff_km')) $('#de_diff_km').value=diff;
+  const income=dailyIncome(), expenses=dailyExpenses(), balance=income-expenses, cash=dailyCash();
+  if($('#de_income')) $('#de_income').textContent=money(income);
+  if($('#de_expenses')) $('#de_expenses').textContent=money(expenses);
+  if($('#de_balance')) { $('#de_balance').textContent=money(balance); $('#de_balance').className=balance<0?'tally-negative':''; }
+  if($('#de_total_cash')) $('#de_total_cash').textContent=money(cash);
+  if($('#de_tally_cash')) $('#de_tally_cash').textContent=money(cash);
+}
+async function saveDailyEntry(e){
+  e.preventDefault();
+  if(!sb){toast('Supabase is not connected.',true);return false;}
+  const date=$('#de_date').value, staff=$('#de_staff').value;
+  if(!date || !staff){toast('Date and delivery boy are required.',true);return false;}
+  if(!dailyCylinderDraft.length){toast('Add at least one cylinder product before saving.',true);return false;}
+  try{
+    await autoMarkAttendance(date,staff);
+    const shared={entry_date:date,staff_name:staff,payment_status:$('#de_payment').value,prepaid_amount:Number($('#de_prepaid').value||0),cash_amount:Number($('#de_office_cash').value||0),in_hand_amount:0,online_cyl_qty:Number($('#de_online_cyl').value||0),gpay_cyl_qty:Number($('#de_gpay_cyl').value||0),gpay_1kg_amount:Number($('#de_gpay_1kg').value||0),gpay_5kg_amount:Number($('#de_gpay_5kg').value||0),other_gpay_amount:Number($('#de_other_gpay').value||0),office_cash_amount:Number($('#de_office_cash').value||0)};
+    const groupId=crypto.randomUUID?crypto.randomUUID():(Date.now()+'-'+Math.random());
+    const rows=dailyCylinderDraft.map((it,i)=>({...shared,cylinder_type:it.type,quantity:Number(it.qty),rate:(it.rate!=null?it.rate:currentRate(it.type)),group_id:groupId,is_primary:i===0}));
+    const {data:insertedEntries,error:entryError}=await sb.from('entries').insert(rows).select('id,is_primary');
+    if(entryError) throw entryError;
+    const primaryEntry=insertedEntries?.find(x=>x.is_primary) || insertedEntries?.[0];
+    if(primaryEntry?.id){
+      const customValues=collectCustomFieldValues('entries','de_custom_',primaryEntry.id);
+      if(customValues.length){const {error:customError}=await sb.from('custom_field_values').insert(customValues);if(customError)throw customError;}
+    }
+
+    const expenseMap=[['bank_deposit','BANK DEPOSIT'],['loadman_advance','LOAD MAN ADVANCE'],['salary','SALARY'],['incentives','INCENTIVES'],['stationery','STATIONERY'],['farm_expenses','FARM EXPENSES'],['hotel_expenses','HOTEL / FOOD'],['kanika_expenses','KANIKA EXPENSES'],['tea','TEA'],['other_expenses','OTHER'],['de_diesel_amt','DIESEL / PETROL'],['de_maintenance','MAINTENANCE']];
+    const expenseRows=expenseMap.map(([id,category])=>({category,amount:Number($('#'+(id.startsWith('de_')?id:'de_'+id))?.value||0)})).filter(x=>x.amount>0).map(x=>({expense_date:date,staff_name:staff,cylinder_type:null,category:x.category,description:'Daily Entry',amount:x.amount,payment_method:'Cash'}));
+    if(expenseRows.length){const {error}=await sb.from('expenses').insert(expenseRows);if(error)throw error;}
+
+    const vehicle=$('#de_vehicle').value;
+    if(vehicle){const {error}=await sb.from('vehicles').insert({log_date:date,vehicle_no:vehicle,driver:staff,starting_km:Number($('#de_start_km').value||0),ending_km:Number($('#de_end_km').value||0),diesel_filled:Number($('#de_diesel').value||0),diesel_amount:Number($('#de_diesel_amt').value||0),service:$('#de_service').value,service_amount:Number($('#de_maintenance').value||0)});if(error)throw error;}
+
+    const den=['2000','500','200','100','50','20','10','5','2','1'];
+    const cp={cash_date:date,delivery_person:staff}; let total=0;
+    den.forEach(d=>{cp['d'+d]=Number($('#de_d'+d).value||0);total+=cp['d'+d]*Number(d)}); cp.total_cash=total;
+    if(total>0){const {error}=await sb.from('cash_counts').insert(cp);if(error)throw error;}
+    closeModal();
+    toast('Daily entry saved successfully');
+    await refresh();
+    if(state.page==='entries'){state.entriesTab='sales';entries();}
+  }catch(err){console.error('Daily entry:',err);toast(err.message||'Failed to save daily entry',true);}
+  return false;
+}
+
+function switchEntriesTab(tab) { state.entriesTab = tab; entries(); }
+function customers() { pageTable('Customer master', `<button class="btn" onclick="openCustomer()">＋ Add Customer</button>`, table(actionsHeader(['Name','Phone','Type','Address','Outstanding']), state.rows.customers, r => [esc(r.name),esc(r.phone),esc(r.customer_type),esc(r.address),money(r.outstanding)], 'customers')); }
+function staff() { pageTable('Staff & delivery team', `<button class="btn" onclick="openStaff()">＋ Add Staff</button>`, table(actionsHeader(['Name','Role','Phone','Active']), state.rows.staff, r => [esc(r.name),esc(r.role),esc(r.phone),`<span class="badge">${r.active?'Active':'Inactive'}</span>`], 'staff')); }
+function stock() { pageTable('Cylinder stock movements', `<button class="btn" onclick="openStock()">＋ Stock Movement</button>`, table(actionsHeader(['Date','Type','Full In','Full Out','Empty In','Empty Out','Delivery Person','Note']), state.rows.stock, r => [esc(r.movement_date),esc(r.cylinder_type),esc(r.full_in),esc(r.full_out),esc(r.empty_in),esc(r.empty_out),esc(r.delivery_person),esc(r.note)], 'stock')); }
+function vehicles() { pageTable('Vehicle & fuel log', `<button class="btn" onclick="openVehicle()">＋ Add Vehicle Log</button>`, table(actionsHeader(['Date','Vehicle','Driver','Start KM','End KM','Total KM','Diesel L','Diesel Amount','Service']), state.rows.vehicles, r => [esc(r.log_date),esc(r.vehicle_no),esc(r.driver),esc(r.starting_km),esc(r.ending_km),esc(r.total_km),esc(r.diesel_filled),money(r.diesel_amount),esc(r.service||'—')], 'vehicles')); }
+function expenses() { pageTable('Expenses', `<button class="btn" onclick="openExpense()">＋ Add Expense</button>`, table(actionsHeader(['Date','Category','Description','Amount','Payment']), state.rows.expenses, r => [esc(r.expense_date),esc(r.category),esc(r.description),money(r.amount),esc(r.payment_method)], 'expenses')); }
+
+function reportDateDefaults() {
+  const from = state.reportFilters.from || $('#globalDate').value || today();
+  const to = state.reportFilters.to || from;
+  return { from, to };
+}
+
+function reportOptions(list) { return [...new Set(list.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b))); }
+
+function reportFilterBar(kind, from, to, people, types, categories) {
+  const rf = state.reportFilters;
+  const isIncome = kind === 'income';
+  return `<div class="panel report-filters"><div class="panel-head"><h3>${isIncome?'Income':'Expense'} filters</h3><small>Use any combination of filters</small></div>
+    <div class="form-grid">
+      <div class="form-group"><label>From date</label><input type="date" id="rf_from" value="${esc(from)}"></div>
+      <div class="form-group"><label>To date</label><input type="date" id="rf_to" value="${esc(to)}"></div>
+      <div class="form-group"><label>Staff / Delivery Boy</label><select id="rf_person"><option value="">All staff</option>${people.map(x=>`<option value="${esc(x)}" ${rf.person===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Cylinder Type</label><select id="rf_type"><option value="">All cylinders</option>${types.map(x=>`<option value="${esc(x)}" ${rf.type===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+      ${isIncome ? `<div class="form-group"><label>Customer</label><select id="rf_customer"><option value="">All customers</option>${reportOptions(state.rows.entries.map(x=>x.customer_name)).map(x=>`<option value="${esc(x)}" ${rf.customer===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Payment Status</label><select id="rf_payment"><option value="">All statuses</option>${['Paid','Partial','Pending'].map(x=>`<option value="${x}" ${rf.payment===x?'selected':''}>${x}</option>`).join('')}</select></div>` : `<div class="form-group"><label>Expense Category</label><select id="rf_category"><option value="">All categories</option>${categories.map(x=>`<option value="${esc(x)}" ${rf.category===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>`}
+      <div class="form-group"><label>Payment Method</label><select id="rf_payment_method"><option value="">All methods</option>${listValues('payment_method', paymentMethodDefault).map(x=>`<option value="${x}" ${rf.paymentMethod===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    </div>
+    <div class="modal-actions"><button class="btn secondary" onclick="resetReportFilters()">Reset</button><button class="btn" onclick="applyReportFilters('${kind}')">Apply Filters</button></div>
+  </div>`;
+}
+
+function incomeReport() {
+  const rf=state.reportFilters, {from,to}=reportDateDefaults();
+  let rows=state.rows.entries.filter(x=>x.entry_date>=from&&x.entry_date<=to);
+  if(rf.person) rows=rows.filter(x=>x.staff_name===rf.person);
+  if(rf.type) rows=rows.filter(x=>x.cylinder_type===rf.type);
+  if(rf.payment) rows=rows.filter(x=>x.payment_status===rf.payment);
+  if(rf.paymentMethod) rows=rows.filter(x=>(x.payment_method||x.payment_status)===rf.paymentMethod);
+  if(rf.customer) rows=rows.filter(x=>x.customer_name===rf.customer);
+  const total=rows.reduce((a,x)=>a+Number(x.amount||0),0), qty=rows.reduce((a,x)=>a+Number(x.quantity||0),0);
+  const cash=rows.reduce((a,x)=>a+Number(x.cash_amount||0),0), prepaid=rows.reduce((a,x)=>a+Number(x.prepaid_amount||0),0);
+  const online=rows.reduce((a,x)=>a+Number(x.gpay_1kg_amount||0)+Number(x.gpay_5kg_amount||0)+Number(x.other_gpay_amount||0),0);
+  const byCylinder={}; rows.forEach(x=>{const k=x.cylinder_type||'Unknown';byCylinder[k]=(byCylinder[k]||0)+Number(x.amount||0);});
+  const byStaff={}; rows.forEach(x=>{const k=x.staff_name||'Unassigned';byStaff[k]=(byStaff[k]||0)+Number(x.amount||0);});
+  const range=from===to?from:`${from} to ${to}`;
+  $('#content').innerHTML=`${reportFilterBar('income',from,to,deliveryBoys(),cylinderTypes(),[])}
+  <div class="cards"><div class="card metric"><div class="top">TOTAL INCOME</div><div class="value">${money(total)}</div><div class="sub">${esc(range)}</div></div><div class="card metric"><div class="top">CYLINDERS</div><div class="value">${qty}</div><div class="sub">Filtered quantity</div></div><div class="card metric"><div class="top">CASH</div><div class="value">${money(cash)}</div></div><div class="card metric"><div class="top">ONLINE / GPAY</div><div class="value">${money(online)}</div><div class="sub">Prepaid: ${money(prepaid)}</div></div></div>
+  <div class="report-grid"><div class="panel"><div class="panel-head"><h3>Cylinder-wise income</h3></div>${summaryTable(byCylinder,'Cylinder','Income')}</div><div class="panel"><div class="panel-head"><h3>Staff-wise income</h3></div>${summaryTable(byStaff,'Staff','Income')}</div></div>
+  <div class="panel"><div class="panel-head"><h3>Income transactions</h3><div class="toolbar"><button class="btn secondary" onclick="exportFilteredReport('income')">Export Excel</button></div></div>${table(['Date','Customer','Staff','Cylinder','Qty','Rate','Amount','Payment'],rows,r=>[esc(r.entry_date),esc(r.customer_name||'—'),esc(r.staff_name||'—'),esc(r.cylinder_type),esc(r.quantity),money(r.rate),money(r.amount),esc(r.payment_status||'—')])}</div>`;
+}
+
+function expenseReport() {
+  const rf=state.reportFilters, {from,to}=reportDateDefaults();
+  let rows=state.rows.expenses.filter(x=>x.expense_date>=from&&x.expense_date<=to);
+  if(rf.person) rows=rows.filter(x=>x.staff_name===rf.person);
+  if(rf.type) rows=rows.filter(x=>x.cylinder_type===rf.type);
+  if(rf.category) rows=rows.filter(x=>x.category===rf.category);
+  if(rf.paymentMethod) rows=rows.filter(x=>x.payment_method===rf.paymentMethod);
+  const total=rows.reduce((a,x)=>a+Number(x.amount||0),0);
+  const byCategory={}, byStaff={}, byCylinder={};
+  rows.forEach(x=>{const c=x.category||'Other';byCategory[c]=(byCategory[c]||0)+Number(x.amount||0);const s=x.staff_name||'Unassigned';byStaff[s]=(byStaff[s]||0)+Number(x.amount||0);const t=x.cylinder_type||'Unassigned';byCylinder[t]=(byCylinder[t]||0)+Number(x.amount||0);});
+  const range=from===to?from:`${from} to ${to}`;
+  $('#content').innerHTML=`${reportFilterBar('expense',from,to,reportOptions(state.rows.expenses.map(x=>x.staff_name).concat(deliveryBoys())),reportOptions(state.rows.expenses.map(x=>x.cylinder_type).concat(cylinderTypes())),reportOptions(state.rows.expenses.map(x=>x.category)))}
+  <div class="cards"><div class="card metric"><div class="top">TOTAL EXPENSE</div><div class="value">${money(total)}</div><div class="sub">${esc(range)}</div></div><div class="card metric"><div class="top">RECORDS</div><div class="value">${rows.length}</div></div><div class="card metric"><div class="top">CASH EXPENSE</div><div class="value">${money(rows.filter(x=>x.payment_method==='Cash').reduce((a,x)=>a+Number(x.amount||0),0))}</div></div><div class="card metric"><div class="top">ONLINE / BANK</div><div class="value">${money(rows.filter(x=>['GPay','Bank'].includes(x.payment_method)).reduce((a,x)=>a+Number(x.amount||0),0))}</div></div></div>
+  <div class="report-grid"><div class="panel"><div class="panel-head"><h3>Category-wise expenses</h3></div>${summaryTable(byCategory,'Category','Expense')}</div><div class="panel"><div class="panel-head"><h3>Staff-wise expenses</h3></div>${summaryTable(byStaff,'Staff','Expense')}</div></div>
+  <div class="panel"><div class="panel-head"><h3>Cylinder-wise expenses</h3></div>${summaryTable(byCylinder,'Cylinder','Expense')}</div>
+  <div class="panel"><div class="panel-head"><h3>Expense transactions</h3><div class="toolbar"><button class="btn secondary" onclick="exportFilteredReport('expense')">Export Excel</button></div></div>${table(['Date','Category','Staff','Cylinder','Description','Amount','Payment'],rows,r=>[esc(r.expense_date),esc(r.category),esc(r.staff_name||'—'),esc(r.cylinder_type||'—'),esc(r.description||'—'),money(r.amount),esc(r.payment_method||'—')],'expenses')}</div>`;
+}
+
+function summaryTable(obj,label,valueLabel){const entries=Object.entries(obj).sort((a,b)=>b[1]-a[1]);if(!entries.length)return '<div class="empty">No matching records.</div>';return `<div class="mini-report"><div><b>${esc(label)}</b><b>${valueLabel}</b></div>${entries.map(([k,v])=>`<div><span>${esc(k)}</span><b>${money(v)}</b></div>`).join('')}</div>`;}
+
+function applyReportFilters(kind) {
+  state.reportFilters={from:$('#rf_from').value||today(),to:$('#rf_to').value||$('#rf_from').value||today(),person:$('#rf_person').value,type:$('#rf_type').value,payment:$('#rf_payment')?.value||'',paymentMethod:$('#rf_payment_method').value,category:$('#rf_category')?.value||'',customer:$('#rf_customer')?.value||''};
+  kind==='expense'?expenseReport():incomeReport();
+}
+function resetReportFilters() { state.reportFilters={from:'',to:'',person:'',type:'',payment:'',paymentMethod:'',category:'',customer:''}; state.page==='expense-reports'?expenseReport():incomeReport(); }
+
+function exportFilteredReport(kind){
+  if(!window.XLSX){toast('Excel library is not loaded.',true);return;}
+  const rf=state.reportFilters,{from,to}=reportDateDefaults();
+  let rows=(kind==='income'?state.rows.entries:state.rows.expenses).filter(x=>(kind==='income'?x.entry_date:x.expense_date)>=from&&(kind==='income'?x.entry_date:x.expense_date)<=to);
+  if(rf.person) rows=rows.filter(x=>x.staff_name===rf.person || (kind==='expense'&&x.delivery_person===rf.person));
+  if(rf.type) rows=rows.filter(x=>x.cylinder_type===rf.type);
+  if(kind==='income'){if(rf.payment)rows=rows.filter(x=>x.payment_status===rf.payment);if(rf.customer)rows=rows.filter(x=>x.customer_name===rf.customer);if(rf.paymentMethod)rows=rows.filter(x=>(x.payment_method||x.payment_status)===rf.paymentMethod);}
+  else {if(rf.category)rows=rows.filter(x=>x.category===rf.category);if(rf.paymentMethod)rows=rows.filter(x=>x.payment_method===rf.paymentMethod);}
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),kind==='income'?'Income Report':'Expense Report');XLSX.writeFile(wb,kind==='income'?'GasFlow_Income_Report.xlsx':'GasFlow_Expense_Report.xlsx');
+}
+
+function form(fields) {
+  return `<form id="dynamicForm" onsubmit="return submitDynamicForm(event)"><div class="form-grid">${fields.map(f => {
+    if (f.type === 'html') return `<div class="form-group full">${f.html}</div>`;
+    const type = f.type || 'text';
+    let control = '';
+    if (type === 'select') { const opts=(f.options||[]).map(o=> (o && typeof o==='object') ? o : {value:o,label:o}); control = `<select id="f_${f.id}" ${f.required===false?'':'required'}>${opts.map(o=>`<option value="${esc(o.value)}" ${f.value!=null && String(o.value)===String(f.value)?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`; }
+    else if (type === 'textarea') control = `<textarea id="f_${f.id}" rows="3" placeholder="${esc(f.placeholder||'')}" ${f.required===false?'':'required'}>${esc(f.value||'')}</textarea>`;
+    else control = `<input id="f_${f.id}" type="${type}" value="${esc(f.value ?? '')}" placeholder="${esc(f.placeholder||'')}" ${f.required===false?'':'required'} ${f.readonly?'readonly class="readonly-field"':''}>`;
+    return `<div class="form-group ${f.full?'full':''}"><label for="f_${f.id}">${esc(f.label)}</label>${control}</div>`;
+  }).join('')}</div><div class="modal-actions"><button type="button" class="btn secondary" onclick="closeModal()">Cancel</button><button type="submit" class="btn">Save</button></div></form>`;
+}
+
+let pendingSubmit = null;
+function openModal(title, body, onSubmit) {
+  $('#modalTitle').textContent = title;
+  $('#modalBody').innerHTML = body;
+  pendingSubmit = onSubmit;
+  $('#modal').classList.remove('hidden');
+}
+function closeModal() { $('#modal').classList.add('hidden'); $('#modalBody').innerHTML=''; pendingSubmit=null; }
+function submitDynamicForm(e) { e.preventDefault(); if (pendingSubmit) pendingSubmit(); return false; }
+
+function currentRate(type){ const r=state.rows.rates.find(x=>x.cylinder_type===type); return r ? Number(r.rate||0) : 0; }
+function cylinderPricesTableHtml(){
+  const rows = [...state.rows.rates].sort((a,b)=>String(a.cylinder_type).localeCompare(String(b.cylinder_type)));
+  if(!rows.length) return '<div class="empty">No cylinder prices yet. Click "＋ Add Cylinder Price" to add one.</div>';
+  const canDelete = state.role === 'admin';
+  return `<div class="table-wrap"><table><thead><tr><th>Cylinder Type</th><th>Price</th><th>Updated</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.cylinder_type)}</b></td><td><input class="price-quick-input" id="qp_${esc(r.id)}" type="number" min="0" step="0.01" value="${esc(r.rate)}"></td><td>${esc(r.updated_at ? new Date(r.updated_at).toLocaleString('en-IN') : '')}</td><td class="row-actions"><button class="btn secondary small" onclick="quickUpdatePrice('${r.id}')">Update</button>${canDelete?`<button class="btn danger small" onclick="deleteRow('${r.id}')">Delete</button>`:''}</td></tr>`).join('')}</tbody></table></div>`;
+}
+async function quickUpdatePrice(id){
+  if (!sb) { toast('Supabase is not connected.', true); return; }
+  const input = $('#qp_'+id);
+  if (!input) return;
+  const rate = Number(input.value);
+  if (isNaN(rate) || rate < 0) { toast('Enter a valid price.', true); return; }
+  const { error } = await sb.from('rates').update({ rate, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { toast(error.message, true); return; }
+  toast('Price updated');
+  await refresh();
+  if (state.page === 'entries') { state.entriesTab = 'prices'; entries(); }
+}
+function attendanceFor(date, person) {
+  const rec = state.rows.attendance.find(a => a.attendance_date === date && a.delivery_person === person);
+  return rec ? rec.status : '\u2014';
+}
+function tallyFor(r) {
+  const amount = Number(r.amount||0), prepaid = Number(r.prepaid_amount||0), counted = Number(r.denomination_total||0);
+  const balance = amount - prepaid;
+  if (!counted && !balance) return { label: '\u2014', ok: true };
+  const diff = counted - balance;
+  if (diff === 0) return { label: 'Matched', ok: true };
+  return { label: (diff>0?'Excess ':'Short ') + money(Math.abs(diff)), ok: false };
+}
+async function autoMarkAttendance(date, person) {
+  if (!sb || !date || !person) return;
+  try {
+    const { error } = await sb.from('attendance').upsert(
+      { attendance_date: date, delivery_person: person, status: 'Present' },
+      { onConflict: 'attendance_date,delivery_person' }
+    );
+    if (error) console.error('Auto attendance:', error);
+  } catch (e) { console.error('Auto attendance failed:', e); }
+}
+const denomKeys = ['d2000','d500','d200','d100','d50','d20','d10','d5','d2','d1'];
+const denomVal = { d2000:2000, d500:500, d200:200, d100:100, d50:50, d20:20, d10:10, d5:5, d2:2, d1:1 };
+function itemsListHtml() {
+  if (!entryItemsDraft.length) return '<div class="empty-small">No cylinder lines added yet. Add at least one below.</div>';
+  return entryItemsDraft.map((it,i) => { const rate = it.rate!=null?it.rate:currentRate(it.type); return `<div class="item-row"><span>${esc(it.type)}</span><span>${esc(it.qty)} \u00d7 ${money(rate)}</span><b>${money(it.qty*rate)}</b><button type="button" class="btn danger small" onclick="removeEntryItem(${i})">Remove</button></div>`; }).join('');
+}
+function renderEntryItems() {
+  const list = $('#itemsList');
+  if (list) list.innerHTML = itemsListHtml();
+  recalcEntryTally();
+}
+function syncEntryItemRate() {
+  const rateEl = $('#newItemRate');
+  if (rateEl) rateEl.value = currentRate($('#newItemType')?.value);
+}
+function addEntryItem() {
+  const typeEl = $('#newItemType'), qtyEl = $('#newItemQty'), rateEl = $('#newItemRate');
+  if (!typeEl || !qtyEl) return;
+  const qty = Number(qtyEl.value) || 0;
+  if (qty <= 0) { toast('Enter a quantity greater than 0', true); return; }
+  const rate = rateEl && rateEl.value !== '' ? Number(rateEl.value) : currentRate(typeEl.value);
+  entryItemsDraft.push({ type: typeEl.value, qty, rate });
+  qtyEl.value = 1;
+  syncEntryItemRate();
+  renderEntryItems();
+}
+function removeEntryItem(i) { entryItemsDraft.splice(i,1); renderEntryItems(); }
+function recalcEntryTally() {
+  const amtEl=$('#tallyAmount'), prepEl=$('#tallyPrepaid'), balEl=$('#tallyBalance'), cntEl=$('#tallyCounted'), diffEl=$('#tallyDiff'), prepaidInput=$('#f_prepaid');
+  if (!amtEl) return;
+  const amount = entryItemsDraft.reduce((a,it)=>a + it.qty*(it.rate!=null?it.rate:currentRate(it.type)), 0);
+  const prepaid = Number(prepaidInput && prepaidInput.value) || 0;
+  const balance = amount - prepaid;
+  let counted = 0;
+  denomKeys.forEach(k => { const el = $('#f_'+k); counted += (Number(el && el.value)||0) * denomVal[k]; });
+  const diff = counted - balance;
+  amtEl.textContent = money(amount); prepEl.textContent = money(prepaid); balEl.textContent = money(balance); cntEl.textContent = money(counted);
+  diffEl.textContent = diff===0 ? 'Matched \u2713' : (diff>0 ? 'Excess '+money(Math.abs(diff)) : 'Short '+money(Math.abs(diff)));
+  diffEl.className = diff===0 ? 'tally-ok' : 'tally-bad';
+}
+async function saveEntry(rows, editId) {
+  if (!sb) { toast('Supabase is not connected.', true); return; }
+  try {
+    if (editId) {
+      const { error: e1 } = await sb.from('entries').update(rows[0]).eq('id', editId);
+      if (e1) throw e1;
+      if (rows.length > 1) { const { error: e2 } = await sb.from('entries').insert(rows.slice(1)); if (e2) throw e2; }
+    } else {
+      const { error } = await sb.from('entries').insert(rows);
+      if (error) throw error;
+    }
+    closeModal();
+    toast(rows.length > 1 ? `Saved ${rows.length} cylinder lines` : 'Saved successfully');
+    await refresh();
+  } catch (err) { console.error('Save entry:', err); toast(err.message || 'Failed to save entry', true); }
+}
+function openEntry(row) {
+  const types=cylinderTypes();
+  const isEdit = !!row;
+  entryItemsDraft = isEdit ? [{ type: row.cylinder_type, qty: Number(row.quantity)||1, rate: Number(row.rate)||currentRate(row.cylinder_type) }] : [];
+  const tallyHtml = `<div class="tally-box" id="tallyBox"><h4>Cash Tally</h4>
+    <div class="tally-row"><span>Amount (Cylinders \u00d7 Price)</span><b id="tallyAmount">\u20b90</b></div>
+    <div class="tally-row"><span>Prepaid</span><b id="tallyPrepaid">\u20b90</b></div>
+    <div class="tally-row"><span>Balance (Postpaid)</span><b id="tallyBalance">\u20b90</b></div>
+    <div class="tally-row"><span>Cash Counted (Denomination)</span><b id="tallyCounted">\u20b90</b></div>
+    <div class="tally-row total"><span>Difference</span><b id="tallyDiff">\u20b90</b></div>
+  </div>`;
+  const itemsHtml = `<h4 class="form-subhead">Cylinder Items</h4>
+    <div class="items-list" id="itemsList"></div>
+    <div class="item-add-row">
+      <select id="newItemType" onchange="syncEntryItemRate()">${types.map(t=>`<option value="${esc(t)}">${esc(t)} \u2014 ${money(currentRate(t))}</option>`).join('')}</select>
+      <input id="newItemQty" type="number" min="1" value="1">
+      <input id="newItemRate" type="number" min="0" step="0.01" value="${currentRate(types[0])}" title="Auto-filled from Cylinder Prices — edit to override">
+      <button type="button" class="btn secondary" onclick="addEntryItem()">＋ Add Line</button>
+    </div>`;
+  openModal(isEdit?'Edit Daily Entry':'Add Daily Entry', form([
+    {id:'date',label:'Date',type:'date',value:isEdit?row.entry_date:$('#globalDate').value},
+    {id:'customer',label:'Customer name',required:false,value:isEdit?row.customer_name:''},
+    deliverySelect('staff','Delivery person',isEdit?row.staff_name:undefined),
+    {type:'html',html:itemsHtml},
+    {id:'cylinderinhand',label:'Cylinder in Hand',type:'number',value:isEdit?row.cylinder_in_hand:0,required:false},
+    {id:'payment',label:'Payment status',type:'select',options:['Paid','Pending','Partial'],value:isEdit?row.payment_status:'Paid'},
+    {id:'prepaid',label:'Prepaid amount',type:'number',value:isEdit?row.prepaid_amount:0,required:false},
+    {id:'cash',label:'Cash received',type:'number',value:isEdit?row.cash_amount:0,required:false},
+    {id:'inhand',label:'Cash in hand / handed in',type:'number',value:isEdit?row.in_hand_amount:0,required:false},
+    {id:'notes',label:'Notes',type:'textarea',required:false,full:true,value:isEdit?row.notes:''},
+    {type:'html',html:'<h4 class="form-subhead">Cash Denomination Count</h4>'},
+    ...denomKeys.map(k=>({id:k,label:'\u20b9'+k.slice(1)+' notes/coins',type:'number',value:isEdit?row[k]:0,required:false})),
+    {type:'html',html:tallyHtml}
+  ]), () => {
+    if (!entryItemsDraft.length) { toast('Add at least one cylinder line before saving.', true); return; }
+    const shared = {entry_date:v('date'),customer_name:v('customer'),staff_name:v('staff'),cylinder_in_hand:+v('cylinderinhand'),payment_status:v('payment'),notes:v('notes')};
+    const prepaid = +v('prepaid'), cash = +v('cash'), inhand = +v('inhand');
+    let denomTotal = 0; const denomFields = {};
+    denomKeys.forEach(k => { const n = +v(k); denomFields[k] = n; denomTotal += n * denomVal[k]; });
+    const zeroDenom = Object.fromEntries(denomKeys.map(k=>[k,0]));
+    const groupId = (isEdit && row.group_id) ? row.group_id : (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random()));
+    const rows = entryItemsDraft.map((it,i) => {
+      const primary = i === 0;
+      return { ...shared, cylinder_type: it.type, quantity: it.qty, rate: (it.rate!=null?it.rate:currentRate(it.type)), group_id: groupId, is_primary: primary,
+        prepaid_amount: primary ? prepaid : 0, cash_amount: primary ? cash : 0, in_hand_amount: primary ? inhand : 0,
+        ...(primary ? denomFields : zeroDenom), denomination_total: primary ? denomTotal : 0 };
+    });
+    (async () => { await autoMarkAttendance(shared.entry_date, shared.staff_name); await saveEntry(rows, isEdit ? row.id : null); })();
+  });
+  renderEntryItems();
+  const prepaidEl = $('#f_prepaid');
+  [prepaidEl, ...denomKeys.map(k=>$('#f_'+k))].forEach(el => el && el.addEventListener('input', recalcEntryTally));
+}
+function entryFieldsPage(){
+  if(state.role!=='admin'){toast('Only Admins can manage Custom Fields.',true);showPage('dashboard');return;}
+  const activeModule = state.customFieldsModule || 'entries';
+  const tabBar = `<div class="tab-bar">${CUSTOM_FIELD_MODULES.map(m=>`<button class="tab-btn ${activeModule===m.id?'active':''}" onclick="switchCustomFieldsModule('${m.id}')">${esc(m.label)}</button>`).join('')}</div>`;
+  const fields=[...state.rows.custom_fields].filter(f=>(f.module||'entries')===activeModule).sort((a,b)=>(a.display_order||0)-(b.display_order||0));
+  const body=fields.length?`<div class="table-wrap"><table><thead><tr><th>Field / Column</th><th>Type</th><th>Required</th><th>Reportable</th><th>Status</th><th>Options</th><th>Actions</th></tr></thead><tbody>${fields.map(f=>{const count=state.rows.custom_field_options.filter(o=>o.field_id===f.id).length;return `<tr><td><b>${esc(f.field_name)}</b></td><td>${esc(f.field_type)}</td><td>${f.is_required?'Yes':'No'}</td><td>${f.is_reportable?'Yes':'No'}</td><td>${f.is_active===false?'Inactive':'Active'}</td><td>${f.field_type==='dropdown'?count:'—'}</td><td class="row-actions"><button class="btn secondary small" onclick="openCustomField('${f.id}')">Edit</button>${f.field_type==='dropdown'?`<button class="btn secondary small" onclick="openCustomOptions('${f.id}')">Items</button>`:''}<button class="btn danger small" onclick="deleteCustomField('${f.id}')">Delete</button></td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">No extra fields configured for this form yet.</div>';
+  const moduleLabel = CUSTOM_FIELD_MODULES.find(m=>m.id===activeModule)?.label || activeModule;
+  $('#content').innerHTML=`${tabBar}<div class="panel"><div class="panel-head"><div><h3>${esc(moduleLabel)} — Custom Fields</h3><small>Add extra input/dropdown columns to this form without changing code.</small></div><button class="btn" onclick="openCustomField(null,'${activeModule}')">＋ Add Field</button></div>${body}</div>`;
+}
+function switchCustomFieldsModule(m){ state.customFieldsModule=m; entryFieldsPage(); }
+function openCustomField(id, defaultModule){
+  const row=id?state.rows.custom_fields.find(x=>x.id===id):null;
+  openModal(row?'Edit Custom Field':'Add Custom Field',form([
+    {id:'module',label:'Applies To',type:'select',options:CUSTOM_FIELD_MODULES.map(m=>({value:m.id,label:m.label})),value:row?.module||defaultModule||state.customFieldsModule||'entries'},
+    {id:'name',label:'Field / Column Name',value:row?.field_name||''},
+    {id:'type',label:'Field Type',type:'select',options:['text','number','amount','date','dropdown','checkbox'],value:row?.field_type||'text'},
+    {id:'required',label:'Required',type:'select',options:['No','Yes'],value:row?.is_required?'Yes':'No'},
+    {id:'reportable',label:'Reportable in Reports',type:'select',options:['No','Yes'],value:row?.is_reportable?'Yes':'No'},
+    {id:'active',label:'Status',type:'select',options:['Active','Inactive'],value:row?.is_active===false?'Inactive':'Active'},
+    {id:'order',label:'Display Order',type:'number',value:row?.display_order||0}
+  ]),async()=>{
+    const p={module:v('module'),field_name:v('name').trim(),field_type:v('type'),is_required:v('required')==='Yes',is_reportable:v('reportable')==='Yes',is_active:v('active')==='Active',display_order:+v('order')||0};
+    if(!p.field_name){toast('Field name is required.',true);return;}
+    state.customFieldsModule=p.module;
+    if(row) await update('custom_fields',row.id,p); else await insert('custom_fields',p);
+    entryFieldsPage();
+  });
+}
+function openCustomOptions(fieldId){
+  const field=state.rows.custom_fields.find(f=>f.id===fieldId);if(!field)return;
+  const opts=state.rows.custom_field_options.filter(o=>o.field_id===fieldId).sort((a,b)=>(a.display_order||0)-(b.display_order||0));
+  const body=`<div class="panel-head"><h3>${esc(field.field_name)} items</h3><button class="btn" type="button" onclick="closeModal();openCustomOption('${fieldId}')">＋ Add Item</button></div>${opts.length?opts.map(o=>`<div class="item-row"><span>${esc(o.option_name)}</span><span>${o.is_active===false?'Inactive':'Active'}</span><span><button class="btn secondary small" type="button" onclick="closeModal();openCustomOption('${fieldId}','${o.id}')">Edit</button><button class="btn danger small" type="button" onclick="deleteCustomOption('${o.id}','${fieldId}')">Delete</button></span></div>`).join(''):'<div class="empty-small">No items added.</div>'}<div class="modal-actions"><button type="button" class="btn secondary" onclick="closeModal();entryFieldsPage()">Close</button></div>`;
+  openModal(`Dropdown Items — ${field.field_name}`,body,null);
+}
+function openCustomOption(fieldId,id){
+  const row=id?state.rows.custom_field_options.find(x=>x.id===id):null;
+  openModal(row?'Edit Dropdown Item':'Add Dropdown Item',form([{id:'name',label:'Item Name',value:row?.option_name||''},{id:'active',label:'Status',type:'select',options:['Active','Inactive'],value:row?.is_active===false?'Inactive':'Active'},{id:'order',label:'Display Order',type:'number',value:row?.display_order||0}]),async()=>{
+    const p={field_id:fieldId,option_name:v('name').trim(),is_active:v('active')==='Active',display_order:+v('order')||0};
+    if(!p.option_name){toast('Item name is required.',true);return;}
+    if(row) await update('custom_field_options',row.id,p); else await insert('custom_field_options',p);
+  });
+}
+async function deleteCustomField(id){if(!confirm('Delete this field and its saved values?'))return;await sb.from('custom_fields').delete().eq('id',id);toast('Field deleted');await refresh();entryFieldsPage();}
+async function deleteCustomOption(id,fieldId){if(!confirm('Delete this dropdown item?'))return;await sb.from('custom_field_options').delete().eq('id',id);toast('Item deleted');await refresh();openCustomOptions(fieldId);}
+
+function listManagerPage(){
+  if(state.role!=='admin'){toast('Only Admins can manage lists.',true);showPage('dashboard');return;}
+  const activeKey = state.listManagerKey || LOOKUP_LISTS[0].key;
+  const tabBar = `<div class="tab-bar">${LOOKUP_LISTS.map(l=>`<button class="tab-btn ${activeKey===l.key?'active':''}" onclick="switchListManagerKey('${l.key}')">${esc(l.label)}</button>`).join('')}</div>`;
+  const items=state.rows.lookup_lists.filter(x=>x.list_key===activeKey).sort((a,b)=>(a.display_order||0)-(b.display_order||0));
+  const meta = LOOKUP_LISTS.find(l=>l.key===activeKey);
+  const body = items.length ? `<div class="table-wrap"><table><thead><tr><th>Value</th><th>Order</th><th>Status</th><th>Actions</th></tr></thead><tbody>${items.map(it=>`<tr><td><b>${esc(it.value)}</b></td><td>${esc(it.display_order||0)}</td><td>${it.is_active===false?'Inactive':'Active'}</td><td class="row-actions"><button class="btn secondary small" onclick="openLookupItem('${activeKey}','${it.id}')">Edit</button><button class="btn danger small" onclick="deleteLookupItem('${it.id}','${activeKey}')">Delete</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">No items yet — using built-in defaults (${esc((meta?.fallback||[]).join(', '))}) until you add some here.</div>`;
+  $('#content').innerHTML=`${tabBar}<div class="panel"><div class="panel-head"><div><h3>${esc(meta?.label||activeKey)}</h3><small>Values shown across the app wherever this dropdown appears. Inactive items are hidden but keep past records intact.</small></div><button class="btn" onclick="openLookupItem('${activeKey}')">＋ Add Item</button></div>${body}</div>`;
+}
+function switchListManagerKey(key){ state.listManagerKey=key; listManagerPage(); }
+function openLookupItem(listKey, id){
+  const row=id?state.rows.lookup_lists.find(x=>x.id===id):null;
+  openModal(row?'Edit List Item':'Add List Item', form([
+    {id:'value',label:'Value',value:row?.value||''},
+    {id:'order',label:'Display Order',type:'number',value:row?.display_order||0},
+    {id:'active',label:'Status',type:'select',options:['Active','Inactive'],value:row?.is_active===false?'Inactive':'Active'}
+  ]), async()=>{
+    const p={list_key:listKey,value:v('value').trim(),display_order:+v('order')||0,is_active:v('active')==='Active'};
+    if(!p.value){toast('Value is required.',true);return;}
+    if(row) await update('lookup_lists',row.id,p); else await insert('lookup_lists',p);
+    listManagerPage();
+  });
+}
+async function deleteLookupItem(id, listKey){
+  if(!confirm('Delete this list item? Existing records that used it are unaffected.'))return;
+  await sb.from('lookup_lists').delete().eq('id',id);
+  toast('Item deleted');
+  await refresh();
+  state.listManagerKey=listKey;
+  listManagerPage();
+}
+
+function openCustomer(row) {
+  const isEdit = !!row;
+  const cfValues = isEdit ? customFieldValuesFor(row.id) : null;
+  openModal(isEdit?'Edit Customer':'Add Customer', form([
+    {id:'name',label:'Customer name',value:isEdit?row.name:''},
+    {id:'phone',label:'Phone',required:false,value:isEdit?row.phone:''},
+    {id:'type',label:'Customer type',type:'select',options:listValues('customer_type', customerTypeDefault),value:isEdit?row.customer_type:undefined},
+    {id:'address',label:'Address',full:true,required:false,value:isEdit?row.address:''},
+    {id:'outstanding',label:'Opening outstanding',type:'number',value:isEdit?row.outstanding:0},
+    {type:'html',html:customFieldsBlockHtml('customers','cf_customers_',cfValues)}
+  ]), () => { const p={name:v('name'),phone:v('phone'),customer_type:v('type'),address:v('address'),outstanding:+v('outstanding')}; saveWithCustomFields('customers',p,isEdit?row.id:null,'customers','cf_customers_'); });
+}
+function openStaff(row) {
+  const isEdit = !!row;
+  const cfValues = isEdit ? customFieldValuesFor(row.id) : null;
+  openModal(isEdit?'Edit Staff':'Add Staff', form([
+    {id:'name',label:'Name',value:isEdit?row.name:''},
+    {id:'role',label:'Role',type:'select',options:listValues('staff_role', staffRoleDefault),value:isEdit?row.role:undefined},
+    {id:'phone',label:'Phone',required:false,value:isEdit?row.phone:''},
+    {id:'active',label:'Status',type:'select',options:['Active','Inactive'],value:isEdit?(row.active?'Active':'Inactive'):'Active'},
+    {type:'html',html:customFieldsBlockHtml('staff','cf_staff_',cfValues)}
+  ]), () => { const p={name:v('name'),role:v('role'),phone:v('phone'),active:v('active')==='Active'}; saveWithCustomFields('staff',p,isEdit?row.id:null,'staff','cf_staff_'); });
+}
+function openStock(row) {
+  const isEdit = !!row;
+  openModal(isEdit?'Edit Stock Movement':'Stock Movement', form([
+    {id:'date',label:'Date',type:'date',value:isEdit?row.movement_date:$('#globalDate').value},
+    {id:'type',label:'Cylinder type',type:'select',options:cylinderTypes(),value:isEdit?row.cylinder_type:undefined},
+    {id:'fin',label:'Full in',type:'number',value:isEdit?row.full_in:0},
+    {id:'fout',label:'Full out',type:'number',value:isEdit?row.full_out:0},
+    {id:'ein',label:'Empty in',type:'number',value:isEdit?row.empty_in:0},
+    {id:'eout',label:'Empty out',type:'number',value:isEdit?row.empty_out:0},
+    deliverySelect('delivery','Delivery person',isEdit?row.delivery_person:undefined),
+    {id:'note',label:'Note',required:false,full:true,value:isEdit?row.note:''}
+  ]), () => { const p={movement_date:v('date'),cylinder_type:v('type'),full_in:+v('fin'),full_out:+v('fout'),empty_in:+v('ein'),empty_out:+v('eout'),delivery_person:v('delivery'),note:v('note')}; isEdit?update('stock',row.id,p):insert('stock',p); });
+}
+function openAttendance(row) {
+  const isEdit = !!row;
+  openModal(isEdit?'Edit Attendance':'Delivery Boy Attendance', form([
+    {id:'date',label:'Date',type:'date',value:isEdit?row.attendance_date:$('#globalDate').value},
+    deliverySelect('delivery','Delivery person',isEdit?row.delivery_person:undefined),
+    {id:'status',label:'Attendance',type:'select',options:['Present','Absent','Half Day','Leave'],value:isEdit?row.status:undefined},
+    {id:'note',label:'Note',required:false,full:true,value:isEdit?row.note:''}
+  ]), () => { const p={attendance_date:v('date'),delivery_person:v('delivery'),status:v('status'),note:v('note')}; isEdit?update('attendance',row.id,p):insert('attendance',p); });
+}
+function openCashCount(row) {
+  const isEdit = !!row;
+  const den = ['2000','500','200','100','50','20','10','5','2','1'];
+  openModal(isEdit?'Edit Cash Denomination Count':'Cash Denomination Count', form([
+    {id:'date',label:'Date',type:'date',value:isEdit?row.cash_date:$('#globalDate').value},
+    deliverySelect('delivery','Delivery person',isEdit?row.delivery_person:undefined),
+    ...den.map(d=>({id:'d'+d,label:'₹'+d+' notes/coins',type:'number',value:isEdit?row['d'+d]:0,required:false}))
+  ]), () => { const p={cash_date:v('date'),delivery_person:v('delivery')}; let total=0; den.forEach(d=>{p['d'+d]=+v('d'+d); total+=p['d'+d]*Number(d)}); p.total_cash=total; isEdit?update('cash_counts',row.id,p):insert('cash_counts',p); });
+}
+function openRate(row) {
+  const isEdit = !!row;
+  openModal(isEdit?'Edit Cylinder Price':'Update Cylinder Price', form([
+    {id:'type',label:'Cylinder type',type:'select',options:cylinderTypes(),value:isEdit?row.cylinder_type:undefined},
+    {id:'rate',label:'Cylinder price',type:'number',value:isEdit?row.rate:0}
+  ]), async () => {
+    if (!sb) return toast('Supabase is not connected.',true);
+    const { error } = await sb.from('rates').upsert({cylinder_type:v('type'),rate:+v('rate'),updated_at:new Date().toISOString()},{onConflict:'cylinder_type'});
+    if (error) { toast(error.message,true); return; }
+    closeModal(); toast('Cylinder price updated'); await refresh();
+  });
+}
+function openVehicle(row) {
+  const isEdit = !!row;
+  const cfValues = isEdit ? customFieldValuesFor(row.id) : null;
+  openModal(isEdit?'Edit Vehicle Log':'Vehicle Log', form([
+    {id:'date',label:'Date',type:'date',value:isEdit?row.log_date:$('#globalDate').value},
+    {id:'vehicle',label:'Vehicle number',value:isEdit?row.vehicle_no:''},
+    {id:'driver',label:'Driver',required:false,value:isEdit?row.driver:''},
+    {id:'start',label:'Starting KM',type:'number',value:isEdit?row.starting_km:0},
+    {id:'end',label:'Ending KM',type:'number',value:isEdit?row.ending_km:0},
+    {id:'diesel',label:'Diesel filled (L)',type:'number',value:isEdit?row.diesel_filled:0},
+    {id:'dieselamt',label:'Diesel amount',type:'number',value:isEdit?row.diesel_amount:0},
+    {id:'service',label:'Service',required:false,value:isEdit?row.service:''},
+    {type:'html',html:customFieldsBlockHtml('vehicles','cf_vehicles_',cfValues)}
+  ]), () => { const p={log_date:v('date'),vehicle_no:v('vehicle'),driver:v('driver'),starting_km:+v('start'),ending_km:+v('end'),diesel_filled:+v('diesel'),diesel_amount:+v('dieselamt'),service:v('service')}; saveWithCustomFields('vehicles',p,isEdit?row.id:null,'vehicles','cf_vehicles_'); });
+}
+function openExpense(row) {
+  const isEdit = !!row;
+  const people=deliveryBoys();
+  const cfValues = isEdit ? customFieldValuesFor(row.id) : null;
+  openModal(isEdit?'Edit Expense':'Add Expense', form([
+    {id:'date',label:'Date',type:'date',value:isEdit?row.expense_date:$('#globalDate').value},
+    {id:'staff',label:'Staff / Delivery Boy',type:'select',options:people,value:isEdit?row.staff_name:undefined},
+    {id:'cylinder',label:'Cylinder Type',type:'select',options:['',...cylinderTypes()],value:isEdit?row.cylinder_type:undefined},
+    {id:'category',label:'Category',type:'select',options:listValues('expense_category', expenseCategoryDefault),value:isEdit?row.category:undefined},
+    {id:'desc',label:'Description',required:false,value:isEdit?row.description:''},
+    {id:'amount',label:'Amount',type:'number',value:isEdit?row.amount:0},
+    {id:'payment',label:'Payment method',type:'select',options:listValues('payment_method', paymentMethodDefault),value:isEdit?row.payment_method:undefined},
+    {type:'html',html:customFieldsBlockHtml('expenses','cf_expenses_',cfValues)}
+  ]), () => { const p={expense_date:v('date'),staff_name:v('staff'),cylinder_type:v('cylinder')||null,category:v('category'),description:v('desc'),amount:+v('amount'),payment_method:v('payment')}; saveWithCustomFields('expenses',p,isEdit?row.id:null,'expenses','cf_expenses_'); });
+}
+function v(id) { return $(`#f_${id}`).value; }
+
+async function deleteRow(id) {
+  if (!sb) { toast('Supabase is not connected.', true); return; }
+  if (state.role !== 'admin') { toast('Only Admins can delete records.', true); return; }
+  if (!id || !confirm('Delete this record? This cannot be undone.')) return;
+  const tables = ['entries','customers','staff','stock','vehicles','expenses','attendance','cash_counts','rates','custom_fields','custom_field_options','custom_field_values','lookup_lists'];
+  let found = false;
+  for (const table of tables) { const {data,error}=await sb.from(table).select('id').eq('id',id).limit(1); if(error) continue; if(data && data.length){ const res=await sb.from(table).delete().eq('id',id); if(res.error){toast(res.error.message,true);return;} found=true; break; } }
+  if(found){ toast('Deleted successfully'); await refresh(); } else toast('Record not found',true);
+}
+
+async function insert(table, payload) {
+  if (!sb) { toast('Supabase is not connected. Check your SUPABASE_URL/SUPABASE_KEY in this file.', true); return; }
+  const { error } = await sb.from(table).insert(payload);
+  if (error) { console.error(`Insert ${table}:`, error); toast(error.message, true); return; }
+  closeModal();
+  toast('Saved successfully');
+  await refresh();
+}
+
+async function update(table, id, payload) {
+  if (!sb) { toast('Supabase is not connected. Check your SUPABASE_URL/SUPABASE_KEY in this file.', true); return; }
+  const { error } = await sb.from(table).update(payload).eq('id', id);
+  if (error) { console.error(`Update ${table}:`, error); toast(error.message, true); return; }
+  closeModal();
+  toast('Updated successfully');
+  await refresh();
+}
+
+function toast(msg, bad=false) {
+  $('#toast').innerHTML = `<div class="toast" style="background:${bad?'#a33b3b':'#172033'}">${esc(msg)}</div>`;
+  setTimeout(() => $('#toast').innerHTML='', 3500);
+}
+
+function importExcel() {
+  const f = $('#excelFile')?.files?.[0];
+  if (!f) { toast('Choose an Excel file first', true); return; }
+  const r = new FileReader();
+  r.onload = e => { const wb = XLSX.read(e.target.result,{type:'array'}); toast(`${wb.SheetNames.length} sheets detected`); };
+  r.readAsArrayBuffer(f);
+}
+function exportExcel() {
+  if (!window.XLSX) { toast('Excel library is not loaded.', true); return; }
+  const wb = XLSX.utils.book_new();
+  for (const [name,rows] of Object.entries(state.rows)) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),name.slice(0,31));
+  XLSX.writeFile(wb,'GasFlow_Report.xlsx');
+}
+function toggleTheme() { document.body.classList.toggle('dark'); localStorage.setItem('dark',document.body.classList.contains('dark')); }
+
+(function(){ if(localStorage.getItem('dark')==='true') document.body.classList.add('dark'); init(); })();
+
+</script>
 </body>
 </html>
